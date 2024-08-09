@@ -1,6 +1,6 @@
 const { Kafka } = require('kafkajs');
 
-function createKafkaLibrary(brokers, appId, appGroup, logger) {
+async function createKafkaLibrary(brokers, appId, appGroup, logger) {
   const kafka = new Kafka({
     clientId: appId,
     brokers: brokers
@@ -140,7 +140,7 @@ function createKafkaLibrary(brokers, appId, appGroup, logger) {
     }
   }
 
-  return init();
+  return await init();
 }
 
 module.exports.createKafkaLibrary = createKafkaLibrary;

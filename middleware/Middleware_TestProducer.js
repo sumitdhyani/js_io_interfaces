@@ -1,4 +1,4 @@
-const readline = require('readline-sync')
+const readline = require('readline')
 const GetMiddlewareInterface = require('./kafka/Engine')
 
 const logger = 
@@ -8,17 +8,23 @@ const logger =
   error : (str)=> { console.log(str)}
 }
 
-function readNextLineAndProduce(middlewareInterface) {
-  const msg = readline.question('Type next message please: ')
-  if (0 == msg.localeCompare("End")){
-    return
-  }
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout
+})
 
-  middlewareInterface.produce("test_topic", "test_topic", msg, {}, (err)=>{
-    if (err) {
-      logger.error(`Error while trying to produce message, details : ${err.message}`)
+function readNextLineAndProduce(middlewareInterface) {
+  rl.question('Type next message? ', msg => {
+    if (0 == msg.localeCompare("End")){
+      return
     }
-    readNextLine(middlewareInterface)
+
+    middlewareInterface.produce("test_topic", "test_topic", msg, {}, (err)=>{
+      if (err) {
+        logger.error(`Error while trying to produce message, details : ${err.message}`)
+      }
+      readNextLineAndProduce(middlewareInterface)
+    })
   })
 }
 
