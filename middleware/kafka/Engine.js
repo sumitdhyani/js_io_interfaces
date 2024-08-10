@@ -19,7 +19,7 @@ function init(brokers,
               callback) {
     const uuid = uuidv4()
     const kafkaAppId = appGroup + ":" + appId + ":" + uuid
-    const kafkaAppGroup = appGroup + ":" + uuid
+    const kafkaAppGroup = appGroup
 
     CreateKafkaInterface.createKafkaLibrary(brokers,
                          kafkaAppId,
@@ -31,43 +31,49 @@ function init(brokers,
       subscribeAsIndividual,
       unsubscribe,
       createTopic })=>{
-        callback({
-          produce: (topic, key, message, headers, errCallback)=>{
-            produce(topic, key, message, headers)
-            .then(()=>{ errCallback(null) })
-            .catch((err)=>{ errCallback(err) })
-          },
-          subscribeAsGroupMember : (topics, dataCallback, errCallback)=>{
-            subscribeAsGroupMember(topics, dataCallback)
-            .then(()=>{})
-            .catch((err)=>{ errCallback(err) })
-          },
-          subscribeAsIndividual : (topics, dataCallback, errCallback)=>{
-            subscribeAsIndividual(topics, dataCallback)
-            .then(()=>{})
-            .catch((err)=>{ errCallback(err) })
-          },
-          unsubscribe : (topics, errCallback)=>{
-            unsubscribe(topics)
-            .then(()=>{})
-            .catch((err)=>{ errCallback(err) })
-          },
-          createTopic : (topicName, numPartitions, replicationFactor, errCallback)=>{
-            createTopic(topicName, numPartitions, replicationFactor)
-            .then(()=>{})
-            .catch((err)=>{ errCallback(err) })
-          }},
-          null)
+        
+        const appDetails = JSON.stringify({appId : kafkaAppId, appGroup : kafkaAppGroup})
+        produce("registrations", kafkaAppGroup, appDetails, {})
+        .then(()=>{
+          callback({
+            produce: (topic, key, message, headers, errCallback)=>{
+              produce(topic, key, message, headers)
+              .then(()=>{ errCallback(null) })
+              .catch((err)=>{ errCallback(err) })
+            },
+            subscribeAsGroupMember : (topic, dataCallback, errCallback)=>{
+              subscribeAsGroupMember([topic], dataCallback)
+              .then(()=>{})
+              .catch((err)=>{ errCallback(err) })
+            },
+            subscribeAsIndividual : (topic, dataCallback, errCallback)=>{
+              subscribeAsIndividual([topic], dataCallback)
+              .then(()=>{})
+              .catch((err)=>{ errCallback(err) })
+            },
+            unsubscribe : (topic, errCallback)=>{
+              unsubscribe([topic])
+              .then(()=>{})
+              .catch((err)=>{ errCallback(err) })
+            },
+            createTopic : (topicName, numPartitions, replicationFactor, errCallback)=>{
+              createTopic(topicName, numPartitions, replicationFactor)
+              .then(()=>{})
+              .catch((err)=>{ errCallback(err) })
+            }},
+            null)
 
-        //Send heart-beats
-        const heartBeatMsg = JSON.stringify({appId : kafkaAppId, appGroup : kafkaAppGroup})
-        setInterval(()=>{ 
-          produce("heartbeats", kafkaAppGroup, heartBeatMsg, {})
-          .then(()=>{})
-          .catch((err)=>{
-            logger.error(`Error while sending heartbeat for app: ${appId}, details: ${err.message}`)
-          })},
-          heartbeatInterval*1000)
+          //Send heart-beats
+          setInterval(()=>{
+            produce("heartbeats", kafkaAppGroup, appDetails, {})
+            .then(()=>{})
+            .catch((err)=>{
+              logger.error(`Error while sending heartbeat for app: ${appId}, details: ${err.message}`)
+            })},
+            heartbeatInterval*1000)
+        })
+        .catch((err) => { callback(null, err) })
+        
     })
     .catch((err)=>{
       callback(null, err)
