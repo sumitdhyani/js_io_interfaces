@@ -1,29 +1,17 @@
 const CreateKafkaInterface = require('./LibWrapper')
 
-
-function uuidv4() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'
-  .replace(/[xy]/g, function (c) {
-      const r = Math.random() * 16 | 0, 
-          v = c == 'x' ? r : (r & 0x3 | 0x8);
-      return v.toString(16);
-  });
-}
-
 function init(brokers,
               appId,
               appGroup,
               logger,
               heartbeatInterval,
+              heartbeatTimeout,
               latencyMetricsOn,
-              callback) {
-    const uuid = uuidv4()
-    const kafkaAppId = appGroup + ":" + appId + ":" + uuid
-    const kafkaAppGroup = appGroup
-
+              callback)
+{
     CreateKafkaInterface.createKafkaLibrary(brokers,
-                         kafkaAppId,
-                         kafkaAppGroup,
+                         appId,
+                         appGroup,
                          logger,
                          callback)
     .then(({ produce, 
@@ -32,8 +20,11 @@ function init(brokers,
       unsubscribe,
       createTopic })=>{
         
-        const appDetails = JSON.stringify({appId : kafkaAppId, appGroup : kafkaAppGroup})
-        produce("registrations", kafkaAppGroup, appDetails, {})
+        const appDetails = {appId : appId,
+          appGroup : appGroup,
+          heartbeatInterval : heartbeatInterval,
+          heartbeatTimeout : heartbeatTimeout }
+        produce("registrations", appGroup, JSON.stringify(appDetails), {})
         .then(()=>{
           callback({
             produce: (topic, key, message, headers, errCallback)=>{
@@ -64,8 +55,9 @@ function init(brokers,
             null)
 
           //Send heart-beats
+          const heartbestMsg = JSON.stringify({appId : appId})
           setInterval(()=>{
-            produce("heartbeats", kafkaAppGroup, appDetails, {})
+            produce("heartbeats", appGroup, heartbestMsg, {})
             .then(()=>{})
             .catch((err)=>{
               logger.error(`Error while sending heartbeat for app: ${appId}, details: ${err.message}`)
