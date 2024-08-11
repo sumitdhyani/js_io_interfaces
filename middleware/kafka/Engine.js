@@ -1,5 +1,5 @@
 const CreateKafkaInterface = require('./LibWrapper')
-
+const SystemValues = require('../../SystemValues')
 function init(brokers,
               appId,
               appGroup,
@@ -9,6 +9,7 @@ function init(brokers,
               latencyMetricsOn,
               callback)
 {
+    const [tags, tagValues, topics] = [SystemValues.tags, SystemValues.tagValues, SystemValues.topics]
     CreateKafkaInterface.createKafkaLibrary(brokers,
                          appId,
                          appGroup,
@@ -20,11 +21,13 @@ function init(brokers,
       unsubscribe,
       createTopic })=>{
         
-        const appDetails = {appId : appId,
-          appGroup : appGroup,
-          heartbeatInterval : heartbeatInterval,
-          heartbeatTimeout : heartbeatTimeout }
-        produce("registrations", appGroup, JSON.stringify(appDetails), {})
+        const appDetails = {
+          [tags.message_type] : tagValues.message_type.registration,
+          [tags.appId] : appId,
+          [tags.appGroup] : appGroup,
+          [tags.heartbeatInterval] : heartbeatInterval,
+          [tags.heartbeatTimeout] : heartbeatTimeout }
+        produce(topics.registrations, appGroup, JSON.stringify(appDetails), {})
         .then(()=>{
           callback({
             produce: (topic, key, message, headers, errCallback)=>{
@@ -55,7 +58,7 @@ function init(brokers,
             null)
 
           //Send heart-beats
-          const heartbestMsg = JSON.stringify({appId : appId})
+          const heartbestMsg = JSON.stringify({[tags.message_type]: tagValues.message_type.heartbeat, [tags.appId] : appId})
           setInterval(()=>{
             produce("heartbeats", appGroup, heartbestMsg, {})
             .then(()=>{})
