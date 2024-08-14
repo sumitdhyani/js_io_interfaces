@@ -1,16 +1,19 @@
 const tags = {
-    message_type        : "message_type",
+    message_type        : "mtype",
     appId               : "appId",
     appGroup            : "appGrp",
-    heartbeatInterval   : "heartbeatInterval",
-    heartbeatTimeout    : "heartbeatTimeout"
+    heartbeatInterval   : "hbInt",
+    heartbeatTimeout    : "hbTo",
+    destination_topic   : "destTop"
 }
 
 const tagValues = {
     message_type : {
-        heartbeat       : "heartbeat",
-        registration    : "registration",
-        appUpdate       : "appUpdate"
+        heartbeat                    : "hb",
+        registration                 : "reg",
+        appUpdate                    : "au",
+        component_enquiry            : "ce",
+        component_enquiry_response   : "cer"
     }
 }
 

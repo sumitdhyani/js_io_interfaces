@@ -6,6 +6,7 @@ async function createKafkaLibrary(brokers, appId, appGroup, logger) {
     brokers: brokers
   });
 
+  const admin = kafka.admin()
   const producer = kafka.producer();
   const consumers = {
     group: kafka.consumer({ groupId: appGroup }),
@@ -41,6 +42,7 @@ async function createKafkaLibrary(brokers, appId, appGroup, logger) {
   
   async function init() {
     try {
+      await admin.connect()
       await producer.connect();
       await consumers.group.connect();
       await consumers.individual.connect();
@@ -138,8 +140,6 @@ async function createKafkaLibrary(brokers, appId, appGroup, logger) {
 
   async function createTopic(topicName, numPartitions, replicationFactor) {
     try {
-      const admin = this.kafka.admin();
-      await admin.connect();
       await admin.createTopics({
         topics: [{
           topic: topicName,
@@ -148,11 +148,9 @@ async function createKafkaLibrary(brokers, appId, appGroup, logger) {
         }],
       });
       logger.debug(`Topic ${topicName} created successfully`);
-    } catch (error) {
-      console.error('Failed to create topic:', error);
-      throw error;
-    } finally {
-      await admin.disconnect();
+    } catch (err) {
+      logger.error(`Failed to create topic ${topicName}:, error: ${err.message}`);
+      throw err;
     }
   }
 
