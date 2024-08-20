@@ -85,10 +85,16 @@ async function createKafkaLibrary(brokers, appId, appGroup, logger) {
     try {
       await consumers.group.stop()
       for (const topic of topics) {
-        if (subscriptions.individual.has(topic)) {
+        if (subscriptions.group.has(topic)) {
+          throw new Error(`Topic ${topic} is already subscribed as a group`);
+        } else if (subscriptions.individual.has(topic)) {
           throw new Error(`Topic ${topic} is already subscribed as an individual`);
         }
+
         subscriptions.group.set(topic, callback);
+      }
+
+      for (const topic of subscriptions.group.keys()) {
         await consumers.group.subscribe({ topic: topic, fromBeginning: false });
       }
 
@@ -105,11 +111,16 @@ async function createKafkaLibrary(brokers, appId, appGroup, logger) {
     try {
       await consumers.individual.stop()
       for (const topic of topics) {
-        if (subscriptions.group.has(topic)) {
+        if (subscriptions.individual.has(topic)) {
+          throw new Error(`Topic ${topic} is already subscribed as an individual`);
+        } else if (subscriptions.group.has(topic)) {
           throw new Error(`Topic ${topic} is already subscribed as a group member`);
         }
         subscriptions.individual.set(topic, callback);
-        await consumers.individual.subscribe({ topic: topic, fromBeginning: false});
+      }
+
+      for (const topic of subscriptions.individual.keys()) {
+        await consumers.individual.subscribe({ topic: topic, fromBeginning: false });
       }
 
       await consumers.individual.run({
@@ -125,12 +136,13 @@ async function createKafkaLibrary(brokers, appId, appGroup, logger) {
     try {
       for (const topic of topics) {
         if (subscriptions.group.has(topic)) {
-          await consumers.group.unsubscribe({ topic: topic });
-          subscriptions.group.delete(topic);
-        }
-        if (subscriptions.individual.has(topic)) {
-          await consumers.individual.unsubscribe({ topic: topic });
-          subscriptions.individual.delete(topic);
+          subscriptions.group.delete(topic)
+          await subscribeAsGroupMember([], null)
+        } else if (subscriptions.individual.has(topic)) {
+          subscriptions.individual.delete(topic)
+          await subscribeAsIndividual([], null)
+        } else {
+          throw new Error(`Topic ${topic} is not already subscribed, so can't be unsubscribed`);
         }
       }
     } catch (err) {

@@ -4,6 +4,7 @@ const SystemValues                = require('../SystemValues')
 
 const [tags, tagValues, topics, appGroups]  =
 [SystemValues.tags, SystemValues.tagValues, SystemValues.topics, SystemValues.appGroups]                    
+const appId   = process.argv[3] + "_" + uuidGen()
 
 function produceCallback(err) {
   if (err) {
@@ -62,12 +63,9 @@ function middlewareInitCallback(middlewareInterface, err) {
                                     }
                                   }
                                 )
-    } else  {
-      logger.info(`Recieved heartbeat for app: ${otherAppId}`)
+    } else {
+      logger.debug(`Recieved heartbeat for app: ${otherAppId}`)
       const appDeathimerId = deathTimerMap.get(otherAppId)
-      if (undefined === appDeathimerId) {
-        logger.error(`This should have never happenned`)
-      }
       clearTimeout(appDeathimerId)
       const heartbeatTimeout = dict[tags.heartbeatTimeout]
       deathTimerMap.set(otherAppId, setTimeoutForDeathFunction(otherAppId, heartbeatTimeout*1000))
@@ -76,6 +74,7 @@ function middlewareInitCallback(middlewareInterface, err) {
 
   function setTimeoutForDeathFunction(otherAppId, timeout) {
     return setTimeout(()=>{
+      logger.warn(`Sending app_down event for app: ${otherAppId}`)
       sendDeathNotice(otherAppId)
       appMap.delete(otherAppId)
       deathTimerMap.delete(otherAppId)}, timeout)    
@@ -125,6 +124,10 @@ function middlewareInitCallback(middlewareInterface, err) {
     const otherAppId = dict[tags.appId]
     if (msgType === tagValues.message_type.component_enquiry_response) {
       logger.info(`Received component info from app: ${otherAppId}`)
+      if (appMap.has(otherAppId)) {
+        return
+      }
+
       appMap.set(otherAppId, dict)
       const heartbeatTimeout = dict[tags.heartbeatTimeout]
       logger.info(`Setting death timer for ${heartbeatTimeout} seconds`)
@@ -146,7 +149,6 @@ function middlewareInitCallback(middlewareInterface, err) {
 }
 
 const brokers = process.argv[2].split(",")
-const appId   = process.argv[3] + "_" + uuidGen()
 const heartbeatInterval = parseInt(process.argv[4])
 const heartbeatTimeout = parseInt(process.argv[5])
 

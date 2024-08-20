@@ -18,7 +18,8 @@ const tagValues = {
         component_enquiry            : "ce",
         component_enquiry_response   : "cer",
         component_query              : "cq",
-        component_query_response     : "cqe"
+        component_query_response     : "cqe",
+        app_event                    : "ae"
     },
 
     app_event_type : {
