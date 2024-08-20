@@ -45,8 +45,8 @@ async function init(brokers,
   async function onDedicatedMsg(msgObj) {
     const msgDict = JSON.parse(msgObj.message)
     const msgType = msgDict[tags.message_type]
-    const retVal = true
-    if (0 === msgType.localeCompare(tagValues.message_type.component_enquiry)) {
+    let retVal = true
+    if (msgType === tagValues.message_type.component_enquiry) {
       const destTopic = msgDict[tags.destination_topic]
       logger.debug(`Recieved component enquiry, destination topic: ${destTopic}`)
       try {
@@ -63,12 +63,13 @@ async function init(brokers,
   }
 
   let selfTopicSubscribed = false
-  while (!selfTopicSubscribed) {
+  while (selfTopicSubscribed === false) {
     try {
-      await subscribeAsIndividual(appId, onDedicatedMsg)
+      await subscribeAsIndividual([appId], onDedicatedMsg)
       selfTopicSubscribed = true
     } catch(err) {
       logger.error(`Error while subscribing self topic: ${appId}, retrying...`)
+      await new Promise(r => setTimeout(r, 5000))
     }
   }
   logger.info(`Self topic, ${appId} subscribed`)

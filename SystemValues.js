@@ -6,7 +6,8 @@ const tags = {
     heartbeatTimeout        : "hbTo",
     destination_topic       : "destTop",
     component_query_eq      : "eq",
-    component_query_results : "cqr"
+    component_query_results : "cqr",
+    app_event_type          : "aet"
 }
 
 const tagValues = {
@@ -18,6 +19,10 @@ const tagValues = {
         component_enquiry_response   : "cer",
         component_query              : "cq",
         component_query_response     : "cqe"
+    },
+
+    app_event_type : {
+        app_down    :   "app_down"
     }
 }
 
@@ -25,6 +30,7 @@ const topics = {
     heartbeats          : "heartbeats",
     registrations       : "registrations",
     component_query     : "component_query",
+    app_events          : "app_events"
 }
 
 const appGroups = {
@@ -33,4 +39,5 @@ const appGroups = {
 
 module.exports.tags       = tags
 module.exports.tagValues  = tagValues
-module.exports.topics  = topics
+module.exports.topics     = topics
+module.exports.appGroups  = appGroups

@@ -1,5 +1,5 @@
 const createMiddlewareInterface = require('./kafka/Engine')
-
+const appId = "test_consumer_" + uuidv4()
 function uuidv4() {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'
     .replace(/[xy]/g, function (c) {
@@ -19,11 +19,11 @@ function initCallback(middlewareINterface, err) {
         (msgObject) => { logger.info( `Message received, content ${msgObject.message}`) },
         (err) => {
             if(err) {
-                logger.error(`Error while subscribing to topic test_topic, details: ${err.message}`) 
+                logger.error(`Error while subscribing to topic ${topic}, details: ${err.message}`) 
             } else {
                 logger.info(`Listening for messsages on topic: ${topic}`)
             }
-        })
+    })
 }
 
 const logger = 
@@ -34,7 +34,7 @@ const logger =
 }
 
 createMiddlewareInterface.init(["node_1:9092", "node_2:9093", "node_3:9094"],
-    "test_consumer_" + uuidv4(),
+    appId,
     "test_consumer",
     logger,
     10,
