@@ -1,22 +1,34 @@
 const tags = {
-    message_type        : "message_type",
-    appId               : "appId",
-    appGroup            : "appGrp",
-    heartbeatInterval   : "heartbeatInterval",
-    heartbeatTimeout    : "heartbeatTimeout"
+    message_type            : "mtype",
+    appId                   : "appId",
+    appGroup                : "appGrp",
+    heartbeatInterval       : "hbInt",
+    heartbeatTimeout        : "hbTo",
+    destination_topic       : "destTop",
+    component_query_eq      : "eq",
+    component_query_results : "cqr"
 }
 
 const tagValues = {
     message_type : {
-        heartbeat       : "heartbeat",
-        registration    : "registration",
-        appUpdate       : "appUpdate"
+        heartbeat                    : "hb",
+        registration                 : "reg",
+        appUpdate                    : "au",
+        component_enquiry            : "ce",
+        component_enquiry_response   : "cer",
+        component_query              : "cq",
+        component_query_response     : "cqe"
     }
 }
 
 const topics = {
-    heartbeats      : "heartbeats",
-    registrations   : "registrations"
+    heartbeats          : "heartbeats",
+    registrations       : "registrations",
+    component_query     : "component_query",
+}
+
+const appGroups = {
+    app_book_keeper : "abk"
 }
 
 module.exports.tags       = tags

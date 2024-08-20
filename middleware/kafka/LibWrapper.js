@@ -6,6 +6,7 @@ async function createKafkaLibrary(brokers, appId, appGroup, logger) {
     brokers: brokers
   });
 
+  const admin = kafka.admin()
   const producer = kafka.producer();
   const consumers = {
     group: kafka.consumer({ groupId: appGroup }),
@@ -19,7 +20,7 @@ async function createKafkaLibrary(brokers, appId, appGroup, logger) {
 
   async function groupConsumerCallback({ topic, partition, message }) {
     if (subscriptions.group.has(topic)) {
-      subscriptions.group.get(topic)({
+      await subscriptions.group.get(topic)({
         topic: topic,
         partition: partition,
         message: message.value.toString(),
@@ -30,7 +31,7 @@ async function createKafkaLibrary(brokers, appId, appGroup, logger) {
 
   async function individualConsumerCallback({ topic, partition, message }) {
     if (subscriptions.individual.has(topic)) {
-      subscriptions.individual.get(topic)({
+      await subscriptions.individual.get(topic)({
         topic: topic,
         partition: partition,
         message: message.value.toString(),
@@ -41,6 +42,7 @@ async function createKafkaLibrary(brokers, appId, appGroup, logger) {
   
   async function init() {
     try {
+      await admin.connect()
       await producer.connect();
       await consumers.group.connect();
       await consumers.individual.connect();
@@ -107,7 +109,7 @@ async function createKafkaLibrary(brokers, appId, appGroup, logger) {
           throw new Error(`Topic ${topic} is already subscribed as a group member`);
         }
         subscriptions.individual.set(topic, callback);
-        await consumers.individual.subscribe({ topic: topic, fromBeginning: false });
+        await consumers.individual.subscribe({ topic: topic, fromBeginning: false});
       }
 
       await consumers.individual.run({
@@ -138,21 +140,18 @@ async function createKafkaLibrary(brokers, appId, appGroup, logger) {
 
   async function createTopic(topicName, numPartitions, replicationFactor) {
     try {
-      const admin = this.kafka.admin();
-      await admin.connect();
       await admin.createTopics({
+        waitForLeaders: false,
         topics: [{
-          topic: topicName,
-          numPartitions: numPartitions,
-          replicationFactor: replicationFactor,
-        }],
-      });
+        topic: topicName,
+        numPartitions: numPartitions,
+        replicationFactor: replicationFactor
+        }]
+      })
       logger.debug(`Topic ${topicName} created successfully`);
-    } catch (error) {
-      console.error('Failed to create topic:', error);
-      throw error;
-    } finally {
-      await admin.disconnect();
+    } catch (err) {
+      logger.error(`Failed to create topic ${topicName}:, error: ${err.message}`);
+      throw err;
     }
   }
 

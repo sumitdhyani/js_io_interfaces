@@ -14,9 +14,16 @@ function initCallback(middlewareINterface, err) {
         return
     }
 
-    middlewareINterface.subscribeAsIndividual("heartbeats",
-        (msgObject) => { console.log( `Message received, content ${msgObject.message}`) },
-        (err) => { console.log(`Error while subscribing to topic test_topic, details: ${err.message}`) })
+    const topic = "test_topic"
+    middlewareINterface.subscribeAsIndividual(topic,
+        (msgObject) => { logger.info( `Message received, content ${msgObject.message}`) },
+        (err) => {
+            if(err) {
+                logger.error(`Error while subscribing to topic test_topic, details: ${err.message}`) 
+            } else {
+                logger.info(`Listening for messsages on topic: ${topic}`)
+            }
+        })
 }
 
 const logger = 
@@ -27,8 +34,8 @@ const logger =
 }
 
 createMiddlewareInterface.init(["node_1:9092", "node_2:9093", "node_3:9094"],
-    "test_app_2" + ":" + uuidv4(),
-    "test_app_3",
+    "test_consumer_" + uuidv4(),
+    "test_consumer",
     logger,
     10,
     30,
