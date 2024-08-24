@@ -1,4 +1,4 @@
-const createMiddlewareInterface = require('./kafka/Engine')
+const {createMiddlewareInterface} = require('./middleware/Engine')
 const appId = "test_consumer_" + uuidv4()
 function uuidv4() {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'
@@ -16,7 +16,7 @@ function initCallback(middlewareINterface, err) {
 
     const topic = "test_topic"
     middlewareINterface.subscribeAsIndividual(topic,
-        (msgObject) => { logger.info( `Message received, content ${msgObject.message}`) },
+        (msgObj) => { logger.info( `Message received, content ${msgObj.message}, metaData: ${JSON.stringify(msgObj.metaData)}`) },
         (err) => {
             if(err) {
                 logger.error(`Error while subscribing to topic ${topic}, details: ${err.message}`) 
@@ -33,7 +33,7 @@ const logger =
   error : (str)=> { console.log(str)}
 }
 
-createMiddlewareInterface.init(["node_1:9092", "node_2:9093", "node_3:9094"],
+createMiddlewareInterface(["node_1:9092", "node_2:9093", "node_3:9094"],
     appId,
     "test_consumer",
     logger,
