@@ -12,7 +12,7 @@ const logger =
 const reader = readline.createInterface({
   input: process.stdin,
   output: process.stdout
-});
+})
 
 function readNextLineAndProduce(middlewareInterface) {
   reader.question('Type next message please: ', (msg)=>{

@@ -36,7 +36,7 @@ function middlewareInitCallback(middlewareInterface, err) {
     
     middlewareInterface.produce(topics.app_events,
                                 appId,
-                                JSON.stringify(msgObj),
+                                msgObj,
                                 {},
                                 produceCallback)
   }
@@ -52,8 +52,8 @@ function middlewareInitCallback(middlewareInterface, err) {
       logger.info(`Recieved heartbeat for unregistered app: ${otherAppId}`)
       middlewareInterface.produce(otherAppId,
                                   tagValues.message_type.component_enquiry,
-                                  JSON.stringify({[tags.message_type] : tagValues.message_type.component_enquiry,
-                                                  [tags.destination_topic] : appId}),
+                                  {[tags.message_type] : tagValues.message_type.component_enquiry,
+                                   [tags.destination_topic] : appId},
                                   {},
                                   (err) => {
                                     if(!err) {
@@ -114,7 +114,7 @@ function middlewareInitCallback(middlewareInterface, err) {
 
     middlewareInterface.produce(dict[tags.destination_topic],
                                 tagValues.message_type.component_enquiry_response),
-                                JSON.stringify(responseObj),
+                                responseObj,
                                 produceCallback
   }
     
