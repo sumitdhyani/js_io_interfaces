@@ -16,7 +16,7 @@ function initCallback(middlewareINterface, err) {
 
     const topic = "test_topic"
     middlewareINterface.subscribeAsIndividual(topic,
-        (msgObj) => { logger.info( `Message received, content ${msgObj.message}, metaData: ${JSON.stringify(msgObj.metaData)}`) },
+        (msgObj) => { logger.info( `Message received, content ${msgObj.message}, headers: ${JSON.stringify(msgObj.headers)}`) },
         (err) => {
             if(err) {
                 logger.error(`Error while subscribing to topic ${topic}, details: ${err.message}`) 

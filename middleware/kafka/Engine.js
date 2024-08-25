@@ -148,7 +148,7 @@ function nonAsyncInterface( brokers,
       subscribeAsGroupMember : (topic, dataCallback, errCallback) => {
         subscribeAsGroupMember(topic, async (msgObj) => { 
           const callbackData = {message     : msgObj.message,
-                                metaData    : msgObj.headers,
+                                headers     : msgObj.headers,
                                 deserializer: JSON.parse}
           dataCallback(callbackData) 
         })
@@ -159,7 +159,7 @@ function nonAsyncInterface( brokers,
       subscribeAsIndividual : (topic, dataCallback, errCallback) => {
         subscribeAsIndividual(topic, async (msgObj) => { 
           const callbackData = {message     : msgObj.message,
-                                metaData    : msgObj.headers,
+                                headers     : msgObj.headers,
                                 deserializer: JSON.parse}
           dataCallback(callbackData)
         })
