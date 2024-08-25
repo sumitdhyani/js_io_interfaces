@@ -14,10 +14,10 @@ function initCallback(middlewareInterface, err, callback){
     callback(null, err)
   } else {
     callback({...middlewareInterface,
-              produce : (topic, key, message, headers, errCallback)=> {
+              produce : (topic, key, msgObj, headers, errCallback)=> {
                 try {
-                  validateOutgoingMsg(message)
-                  middlewareInterface.produce(topic, key, JSON.stringify(message), headers, errCallback)
+                  validateOutgoingMsg(msgObj)
+                  middlewareInterface.produce(topic, key, JSON.stringify(msgObj), {...headers, [tags.message_type] : msgObj[tags.message_type]}, errCallback)
                 } catch (err) {
                   errCallback(err)
                 }

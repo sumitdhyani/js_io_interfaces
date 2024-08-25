@@ -43,10 +43,11 @@ async function init(brokers,
     [tags.heartbeatInterval] : heartbeatInterval,
     [tags.heartbeatTimeout] : heartbeatTimeout })
   async function onDedicatedMsg(msgObj) {
-    const msgDict = JSON.parse(msgObj.message)
-    const msgType = msgDict[tags.message_type]
     let retVal = true
+    const msgType = msgObj.headers[tags.message_type].toString()
+    logger.debug(`Recieved headers.msgType: ${msgType}`)
     if (msgType === tagValues.message_type.component_enquiry) {
+      const msgDict = JSON.parse(msgObj.message)
       const destTopic = msgDict[tags.destination_topic]
       logger.debug(`Recieved component enquiry, destination topic: ${destTopic}`)
       try {
