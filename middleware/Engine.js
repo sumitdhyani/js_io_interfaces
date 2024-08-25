@@ -21,7 +21,8 @@ function initCallback(middlewareInterface, err, callback){
                 } catch (err) {
                   errCallback(err)
                 }
-              }})
+              }},
+             null)
   }
 }
 

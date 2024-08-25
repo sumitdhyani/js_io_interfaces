@@ -41,8 +41,8 @@ function middlewareInitCallback(middlewareInterface, err) {
                                 produceCallback)
   }
 
-  function onHeartbeat(msgObject) {
-    const dict = JSON.parse(msgObject.message)
+  function onHeartbeat(msgObj) {
+    const dict = msgObj.deserializer(msgObj.message)
     const otherAppId = dict[tags.appId]
     const appDetails = appMap.get(otherAppId)
     if (otherAppId === appId) {
@@ -81,7 +81,7 @@ function middlewareInitCallback(middlewareInterface, err) {
   }
 
   function onComponentQuery(msgObj) {
-    const dict = JSON.parse(msgObj)
+    const dict = msgObj.deserializer(msgObj.message)
     const eqTags = dict[tags.component_query_eq]
     let results = null
     if( undefined === eqTags ) {
@@ -118,8 +118,8 @@ function middlewareInitCallback(middlewareInterface, err) {
                                 produceCallback
   }
     
-  function onIncomingMessage(msgObject) {
-    const dict = JSON.parse(msgObject.message)
+  function onIncomingMessage(msgObj) {
+    const dict = msgObj.deserializer(msgObj.message)
     const msgType = dict[tags.message_type]
     const otherAppId = dict[tags.appId]
     if (msgType === tagValues.message_type.component_enquiry_response) {

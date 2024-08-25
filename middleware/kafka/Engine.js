@@ -145,13 +145,23 @@ function nonAsyncInterface( brokers,
       },
 
       subscribeAsGroupMember : (topic, dataCallback, errCallback) => {
-        subscribeAsGroupMember(topic, async (msgObj) => { dataCallback(msgObj) })
+        subscribeAsGroupMember(topic, async (msgObj) => { 
+          const callbackData = {message     : msgObj.message,
+                                metaData    : msgObj.headers,
+                                deserializer: JSON.parse}
+          dataCallback(callbackData) 
+        })
         .then( ()=> { errCallback(null) } )
         .catch( (err) => { errCallback(err) } )
       },
 
       subscribeAsIndividual : (topic, dataCallback, errCallback) => {
-        subscribeAsIndividual(topic, async (msgObj) => { dataCallback(msgObj) })
+        subscribeAsIndividual(topic, async (msgObj) => { 
+          const callbackData = {message     : msgObj.message,
+                                metaData    : msgObj.headers,
+                                deserializer: JSON.parse}
+          dataCallback(callbackData)
+        })
         .then( ()=> { errCallback(null) } )
         .catch( (err) => { errCallback(err) } )
       },
