@@ -40,4 +40,5 @@ createMiddlewareInterface(["node_1:9092", "node_2:9093", "node_3:9094"],
     10,
     30,
     false,
+    (reqObj, responseFunc)=> {},
     initCallback)

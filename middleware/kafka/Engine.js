@@ -51,7 +51,7 @@ async function init(brokers,
       const destTopic = msgDict[tags.destination_topic]
       logger.debug(`Recieved component enquiry, destination topic: ${destTopic}`)
       try {
-        await produce(destTopic, topics.component_query, comp_enquiry_resp, {})
+        await produce(destTopic, topics.component_query, comp_enquiry_resp, {[tags.message_type] : tagValues.message_type.component_enquiry_response})
         logger.debug(`Send component enquiry response to topic: ${destTopic}`)
       } catch(err) {
         logger.debug(`Error while sending component enquiry response to topic: ${destTopic}, details: ${err.message}`)

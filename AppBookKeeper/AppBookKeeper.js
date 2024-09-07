@@ -137,7 +137,13 @@ function middlewareInitCallback(middlewareInterface, err) {
 
   middlewareInterface.subscribeAsIndividual(topics.heartbeats,
                                             onHeartbeat,
-                                            consumeCallback)
+                                            (err) =>{
+                                              if(err) {
+                                                logger.error(`Error while suscribing heartbeats`)
+                                              } else {
+                                                logger.error(`heartbeats subscribed`)
+                                              }
+                                            })
 
   middlewareInterface.subscribeAsIndividual(appId,
                                             onIncomingMessage,
@@ -166,5 +172,6 @@ createMiddlewareInterface(brokers,
   heartbeatInterval,
   heartbeatTimeout,
   false,
+  (reqObj, responseFunc)=> {},
   middlewareInitCallback)
 
