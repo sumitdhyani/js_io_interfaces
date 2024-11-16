@@ -20,14 +20,9 @@ const reader = readline.createInterface({
 function readNextLineAndProduce(middlewareInterface) {
   reader.question('Type next message please: ', (msg)=>{
     if (msg !== "End") {
-      middlewareInterface.request("test_topic",
-        "test",
-        {[tags.message_type] : tagValues.message_type.dummy, "echo_text" : msg},
-        {},
-        (msgObj) => {logger.info(`Recd. response: ${msgObj.message}`)},
-        (err)=>{
+      middlewareInterface.produce("test_topic", "test_topic", {[tags.message_type] : "dummy", "text" : msg}, {abc : "abc"}, (err)=>{
         if (err) {
-          logger.error(`Error while trying to send request, details : ${err.message}`)
+          logger.error(`Error while trying to produce message, details : ${err.message}`)
         }
         readNextLineAndProduce(middlewareInterface)
       })    
@@ -51,7 +46,7 @@ createMiddlewareInterface(["node_1:9092", "node_2:9093", "node_3:9094"],
   10,
   30,
   false,
-  (reqObj, responseFunc)=> {},
+  null,
   initCallback
 )
 
