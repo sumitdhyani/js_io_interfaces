@@ -9,7 +9,9 @@ const tags = {
     component_query_results : "cqr",
     app_event_type          : "aet",
     reqId                   : "reqId",
-    respId                  : "respId"
+    respId                  : "respId",
+    isLastResp              : "lastResp",
+    errorDesc               : "ed"
 }
 
 const tagValues = {
@@ -27,6 +29,10 @@ const tagValues = {
 
     app_event_type : {
         app_down    :   "app_down"
+    },
+
+    errorDesc : {
+        not_a_responder : {1 : "not_a_responder"}
     }
 }
 

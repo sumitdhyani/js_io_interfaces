@@ -9,6 +9,16 @@ function validateOutgoingMsg(msg) {
 }
 
 function initCallback(middlewareInterface, err, appReqHandler, appId, logger, callback){
+  let reqHandler = (null != appReqHandler)? appReqHandler :
+  (msgObj, respSender) =>{
+    respSender({[tags.message_type] : tagValues.message_type.dummy,
+                [tags.errorDesc] : tagValues.errorDesc.not_a_responder},
+               true,
+               (err)=>{
+                 logger.error(`Error while sending response: ${err.message}`)
+               })
+  }
+
   const methodsForCallback = {...middlewareInterface,
     produce : (topic, key, msgObj, headers, errCallback)=> {
       try {
@@ -20,21 +30,46 @@ function initCallback(middlewareInterface, err, appReqHandler, appId, logger, ca
     },
 
     subscribeAsIndividual : (topic, appCallback, errCallback) => {
-      middlewareInterface.subscribeAsIndividual(topic,
-        (msgObj) => { 
-          onMsg(msgObj, appCallback)
-        },
-        errCallback
-      )
+      if (topic === appId) {
+        middlewareInterface.unsubscribe(appId, (err=>{
+          if (!err) {
+            middlewareInterface.subscribeAsIndividual(topic,
+              (msgObj) => {
+                if(onDedicatedMsg(msgObj) === false) {
+                  appCallback(msgObj)
+                }
+              },
+              errCallback
+            )
+          } else {
+            errCallback(err)
+          }
+        }))
+      } else {
+        middlewareInterface.subscribeAsIndividual(topic,
+                                                  appCallback,
+                                                  errCallback)
+      }
     },
 
-    subscribeAsGroupMember : (topic, appCallback, errCallback) => {
-      middlewareInterface.subscribeAsGroupMember(topic, 
-        (msgObj) => { 
-          onMsg(msgObj, appCallback)
-        },
-        errCallback
-      )
+    subscribeAsGroupMember : middlewareInterface.subscribeAsGroupMember,
+
+    unsubscribe : (topic, errCallback) => {
+      middlewareInterface.unsubscribe(topic, (err) => {
+        if(err) {
+          errCallback(err)
+          return
+        }
+
+        if (appId !== topic) {
+          return
+        }
+
+        middlewareInterface.subscribeAsIndividual(appId, 
+                                                  onDedicatedMsg,
+                                                  errCallback)
+
+      })
     },
 
     request : request
@@ -42,25 +77,25 @@ function initCallback(middlewareInterface, err, appReqHandler, appId, logger, ca
   
   function onReq(msgObj, reqId, destTopic)
   {
-    function respSender(responseObj, headers, errCallback) {
+    function respSender(responseObj, isLastResp, errCallback) {
       methodsForCallback.produce(destTopic,
                                  reqId,
                                  responseObj,
-                                 {...headers, [tags.respId]: reqId},
+                                 {[tags.respId]: reqId, [tags.isLastResp] : isLastResp? "Y" : "N"},
                                  errCallback)
     }
 
-    appReqHandler(msgObj, respSender)
+    reqHandler(msgObj, respSender)
   }
 
   //Key: reqId, reapCallback
   const pendingReqStore = new Map()
-  function onResp(msgObj, respId) {
+  function onResp(msgObj, respId, isLastResp) {
     const respCallback = pendingReqStore.get(respId)
     if(undefined === respCallback) {
       logger.warn(`Response for unknown reqId: ${respId}, msg: ${msgObj.message}`)
     } else {
-      respCallback(msgObj)
+      respCallback(msgObj, isLastResp)
     }
   }
 
@@ -72,8 +107,8 @@ function initCallback(middlewareInterface, err, appReqHandler, appId, logger, ca
                    errCallback)
   {
     const reqId = uuidGen()
-    pendingReqStore.set(reqId, (msgObj) => {
-      respCallback(msgObj)
+    pendingReqStore.set(reqId, (msgObj, isLastResp) => {
+      respCallback(msgObj, isLastResp)
       pendingReqStore.delete(reqId)
     })
     methodsForCallback.produce(topic,
@@ -83,23 +118,38 @@ function initCallback(middlewareInterface, err, appReqHandler, appId, logger, ca
                                errCallback)
   }
 
-  function onMsg(msgObj, appCallback) {
+  function onDedicatedMsg(msgObj) {
     const reqId = msgObj.headers[tags.reqId]
     const respId = msgObj.headers[tags.respId]
-    logger.debug(`reqId: ${reqId}, respId: ${respId}`)
+    const isLastResp = msgObj.headers[tags.isLastResp]
+    let retVal = true
     if (undefined !== reqId) {
-      onReq(msgObj, reqId, msgObj.headers[tags.destination_topic])
-    } else if (undefined !== reqId) {
-      onResp(msgObj, respId)
+      onReq(msgObj, reqId.toString(), msgObj.headers[tags.destination_topic].toString())
+    } else if (undefined !== respId) {
+      logger.debug(`last rep recd., reqId: ${respId}`)
+      onResp(msgObj, respId.toString(), isLastResp.toString() === "Y")
     } else {
-      appCallback(msgObj)
+      retVal = false
     }
+
+    return false
   }
 
   if(err){
     callback(null, err)
   } else {
-    callback(methodsForCallback, null)
+    middlewareInterface.subscribeAsIndividual(appId,
+      (msgObj) => { 
+        onDedicatedMsg(msgObj)
+      },
+      (err) => {
+        if(!err){
+          callback(methodsForCallback, null)
+        } else {
+          callback(null, err)
+        }
+      }
+    )
   }
 }
 

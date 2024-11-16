@@ -45,7 +45,6 @@ async function init(brokers,
   async function onDedicatedMsg(msgObj) {
     let retVal = true
     const msgType = msgObj.headers[tags.message_type].toString()
-    logger.debug(`Recieved headers.msgType: ${msgType}`)
     if (msgType === tagValues.message_type.component_enquiry) {
       const msgDict = JSON.parse(msgObj.message)
       const destTopic = msgDict[tags.destination_topic]
@@ -106,7 +105,7 @@ async function init(brokers,
           await unsubscribe([topic])
           await subscribeAsIndividual([topic],
             async (msgObj)=>{
-              if (!(await onDedicatedMsg(msgObj))) {
+              if (await onDedicatedMsg(msgObj) === false) {
                 await dataCallback(msgObj)
               }
           })
@@ -115,7 +114,23 @@ async function init(brokers,
         }
       },
 
-      unsubscribe : unsubscribe,
+      unsubscribe : async (topic, errCallback) => {
+        try
+        {
+          await unsubscribe([topic])
+          if (topic === appId) {
+            await subscribeAsIndividual([topic],
+              async (msgObj)=>{
+                await onDedicatedMsg(msgObj)
+            })
+          }
+
+          errCallback(null)
+
+        } catch(err) {
+          errCallback(err)
+        }
+      },
       
       createTopic : createTopic
     }
