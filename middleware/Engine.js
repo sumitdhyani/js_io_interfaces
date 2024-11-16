@@ -8,13 +8,21 @@ function validateOutgoingMsg(msg) {
   }
 }
 
+function msgHook(callback, hook) {
+  return (msgObj) => {
+    if(hook(msgObj) === false) {
+      callback(msgObj)
+    }
+  }
+}
+
 function initCallback(middlewareInterface, err, appReqHandler, appId, logger, callback){
   let reqHandler = (null != appReqHandler)? appReqHandler :
   (msgObj, respSender) =>{
     respSender({[tags.message_type] : tagValues.message_type.dummy,
                 [tags.errorDesc] : tagValues.errorDesc.not_a_responder},
                true,
-               (err)=>{
+               (err) => {
                  logger.error(`Error while sending response: ${err.message}`)
                })
   }
@@ -34,20 +42,15 @@ function initCallback(middlewareInterface, err, appReqHandler, appId, logger, ca
         middlewareInterface.unsubscribe(appId, (err=>{
           if (!err) {
             middlewareInterface.subscribeAsIndividual(topic,
-              (msgObj) => {
-                if(onDedicatedMsg(msgObj) === false) {
-                  appCallback(msgObj)
-                }
-              },
-              errCallback
-            )
+                                                      msgHook(appCallback, onDedicatedMsg),
+                                                      errCallback)
           } else {
             errCallback(err)
           }
         }))
       } else {
         middlewareInterface.subscribeAsIndividual(topic,
-                                                  appCallback,
+                                                  msgHook(appCallback, onDedicatedMsg),
                                                   errCallback)
       }
     },
