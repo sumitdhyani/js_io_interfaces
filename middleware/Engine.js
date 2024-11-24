@@ -8,14 +8,6 @@ function validateOutgoingMsg(msg) {
   }
 }
 
-function msgHook(callback, hook) {
-  return (msgObj) => {
-    if(hook(msgObj) === false) {
-      callback(msgObj)
-    }
-  }
-}
-
 function initCallback(middlewareInterface, err, appReqHandler, appId, logger, callback){
   let reqHandler = (null != appReqHandler)? appReqHandler :
   (msgObj, respSender) =>{
@@ -25,6 +17,16 @@ function initCallback(middlewareInterface, err, appReqHandler, appId, logger, ca
                (err) => {
                  logger.error(`Error while sending response: ${err.message}`)
                })
+  }
+
+  function msgHook(callback, hook) {
+    return (msgObj) => {
+      logger.debug(`Here, 25 msgObj: ${JSON.stringify(msgObj)}`)
+      if(hook(msgObj) === false) {
+        logger.debug(`Here, 26 msgObj: ${JSON.stringify(msgObj)}`)
+        callback(msgObj)
+      }
+    }
   }
 
   const methodsForCallback = {...middlewareInterface,
@@ -125,17 +127,17 @@ function initCallback(middlewareInterface, err, appReqHandler, appId, logger, ca
     const reqId = msgObj.headers[tags.reqId]
     const respId = msgObj.headers[tags.respId]
     const isLastResp = msgObj.headers[tags.isLastResp]
-    let retVal = true
+    let retVal = false
     if (undefined !== reqId) {
       onReq(msgObj, reqId.toString(), msgObj.headers[tags.destination_topic].toString())
+      retVal = true
     } else if (undefined !== respId) {
       logger.debug(`last rep recd., reqId: ${respId}`)
       onResp(msgObj, respId.toString(), isLastResp.toString() === "Y")
-    } else {
-      retVal = false
+      retVal = true
     }
 
-    return false
+    return retVal
   }
 
   if(err){

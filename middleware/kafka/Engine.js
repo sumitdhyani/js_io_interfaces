@@ -114,21 +114,13 @@ async function init(brokers,
         }
       },
 
-      unsubscribe : async (topic, errCallback) => {
-        try
-        {
-          await unsubscribe([topic])
-          if (topic === appId) {
-            await subscribeAsIndividual([topic],
-              async (msgObj)=>{
-                await onDedicatedMsg(msgObj)
-            })
-          }
-
-          errCallback(null)
-
-        } catch(err) {
-          errCallback(err)
+      unsubscribe : async (topic) => {
+        await unsubscribe([topic])
+        if (topic === appId) {
+          await subscribeAsIndividual([topic],
+            async (msgObj)=>{
+              await onDedicatedMsg(msgObj)
+          })
         }
       },
       
@@ -183,7 +175,7 @@ function nonAsyncInterface( brokers,
       },
 
       unsubscribe : (topic, errCallback) => {
-        unsubscribe([topic])
+        unsubscribe(topic)
         .then( ()=> { errCallback(null) } )
         .catch( (err) => { errCallback(err) } )
       },

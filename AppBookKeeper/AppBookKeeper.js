@@ -12,9 +12,11 @@ function produceCallback(err) {
   }
 }
 
-function consumeCallback(err) {
+function consumeCallback(err, topic) {
   if (err) {
-    logger.error(`Error while trying to consume topic, details : ${err.message}`)
+      logger.error(`Error while trying to consume topic: ${topic}, details : ${err.stack}`)
+  } else {
+    logger.debug(`Successfully subscribed topic: ${topic}`)
   }
 }
 
@@ -82,31 +84,30 @@ function middlewareInitCallback(middlewareInterface, err) {
 
   function onComponentQuery(msgObj) {
     const dict = msgObj.deserializer(msgObj.message)
-    const eqTags = dict[tags.component_query_eq]
-    let results = null
-    if( undefined === eqTags ) {
-      results = Array.from(appMap).map(([appId, appDict]) =>{
-        return appDict
-      })
-    } else {
+    const destination_topic = dict[tags.destination_topic]
+    const appId = dict[tags.appId]
+    const appGroup = dict[tags.appGroup]
+    const results = []
+    if (undefined !== appId) {
+      const appDetails = appMap.get(appId)
+      if (undefined !== appDetails) {
+        results = [appDetails]
+      }
+    } else if (undefined !== appGroup) {
       results = Array.from(appMap)
-      .filter(([appId, appDict]) =>{
-        let retVal = false
-        eqTags.forEach(([tag, value]) => {
-          const tagValueInDict = appDict[tag]
-          retVal = retVal &&
-                   tagValueInDict !== undefined &&
-                   tagValueInDict === value
-          if (!retVal) {
-            return
-          }
-        })
-        return retVal
+      .filter(([appId, appDict]) => {
+        return appDict[tags.appGroup] === appGroup
       })
       .map(([appId, appDict]) => {
         return appDict
       })
+    } else {
+      results = Array.from(appMap)
+      .map(([appId, appDict]) => {
+        return appDict
+      })
     }
+    
 
     const responseObj = {[tags.message_type] : tagValues.message_type.component_query_response,
                       [tags.component_query_results] : results
@@ -119,6 +120,7 @@ function middlewareInitCallback(middlewareInterface, err) {
   }
     
   function onIncomingMessage(msgObj) {
+    logger.debug(`Msg recd=================: ${msgObj.message}`)
     const dict = msgObj.deserializer(msgObj.message)
     const msgType = dict[tags.message_type]
     const otherAppId = dict[tags.appId]
@@ -147,11 +149,11 @@ function middlewareInitCallback(middlewareInterface, err) {
 
   middlewareInterface.subscribeAsIndividual(appId,
                                             onIncomingMessage,
-                                            consumeCallback)
+                                            (err) => { consumeCallback(err, appId) } )
 
   middlewareInterface.subscribeAsGroupMember(topics.component_query,
                                              onComponentQuery,
-                                             consumeCallback)
+                                            (err) => { consumeCallback(err, appId) } )
 }
 
 const brokers = process.argv[2].split(",")
