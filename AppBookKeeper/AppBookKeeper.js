@@ -120,7 +120,6 @@ function middlewareInitCallback(middlewareInterface, err) {
   }
     
   function onIncomingMessage(msgObj) {
-    logger.debug(`Msg recd=================: ${msgObj.message}`)
     const dict = msgObj.deserializer(msgObj.message)
     const msgType = dict[tags.message_type]
     const otherAppId = dict[tags.appId]

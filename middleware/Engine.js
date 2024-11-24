@@ -21,9 +21,7 @@ function initCallback(middlewareInterface, err, appReqHandler, appId, logger, ca
 
   function msgHook(callback, hook) {
     return (msgObj) => {
-      logger.debug(`Here, 25 msgObj: ${JSON.stringify(msgObj)}`)
       if(hook(msgObj) === false) {
-        logger.debug(`Here, 26 msgObj: ${JSON.stringify(msgObj)}`)
         callback(msgObj)
       }
     }
