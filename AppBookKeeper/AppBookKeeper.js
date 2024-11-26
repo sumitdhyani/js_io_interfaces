@@ -87,7 +87,7 @@ function middlewareInitCallback(middlewareInterface, err) {
     const destination_topic = dict[tags.destination_topic]
     const appId = dict[tags.appId]
     const appGroup = dict[tags.appGroup]
-    const results = []
+    let results = []
     if (undefined !== appId) {
       const appDetails = appMap.get(appId)
       if (undefined !== appDetails) {
@@ -113,10 +113,11 @@ function middlewareInitCallback(middlewareInterface, err) {
                       [tags.component_query_results] : results
     }
 
-    middlewareInterface.produce(dict[tags.destination_topic],
-                                tagValues.message_type.component_enquiry_response),
+    middlewareInterface.produce(destination_topic,
+                                tagValues.message_type.component_query_response,
                                 responseObj,
-                                produceCallback
+                                {},
+                                produceCallback)
   }
     
   function onIncomingMessage(msgObj) {

@@ -6,7 +6,7 @@ const tags = {
     heartbeatTimeout        : "hbTo",
     destination_topic       : "destTop",
     component_query_eq      : "eq",
-    component_query_results : "cqr",
+    component_query_results : "cqres",
     app_event_type          : "aet",
     reqId                   : "reqId",
     respId                  : "respId",
@@ -22,7 +22,7 @@ const tagValues = {
         component_enquiry            : "ce",
         component_enquiry_response   : "cer",
         component_query              : "cq",
-        component_query_response     : "cqe",
+        component_query_response     : "cqr",
         app_event                    : "ae",
         dummy                        : "dummy"
     },
