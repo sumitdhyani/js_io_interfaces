@@ -1,3 +1,10 @@
+class SortedMap extends Map {
+  constructor(...args) {
+    super(...args);
+  }
+
+
+}
 class BucketAssigner
 {
   constructor(numBuckets)
@@ -45,11 +52,8 @@ class BucketAssigner
     // 1st key being added
     else if (this.empty()) {
       this.weightMap.set(key, this.numBuckets)
-      const bucketIdxs = []
-      this.keyToBucketIdxs.set(key, bucketIdxs)
+      this.keyToBucketIdxs.set(key, [...Array(this.numBuckets).keys()])
       for (let i in 0..numBuckets) {
-        this.bucketIdxToKey.set(i, key)
-        bucketIdxs.push(i)
         assignmentCallback(key, i)
       }
       return true
@@ -70,24 +74,24 @@ class BucketAssigner
     let toUnassign = new Map()
 
     for (let i in 0..numKeysToReassign) {
-      const begin = this.weightMap.entries().next()
-      const [weight, keyList] = begin.value
-      let numUnassignmentForThisKey = toUnassign.get(keyList)
+      const begin = this.weightMap.entries().Array().next()
+      const [highestWeight, highestWeightKeys] = begin.value
+      let numUnassignmentForThisKey = toUnassign.get(highestWeightKeys[0])
       if (numUnassignmentForThisKey === undefined) {
-        toUnassign.set(keyList[0], 1)
+        toUnassign.set(highestWeightKeys[0], 1)
       } else {
-        toUnassign.set(keyList[0], numUnassignmentForThisKey + 1)
+        toUnassign.set(highestWeightKeys[0], numUnassignmentForThisKey + 1)
       }
 
-      let [nextWeight, nextKeyList] = begin.next()
-      if (nextWeight === undefined || nextWeight < weight - 1) {
-        this.weightMap.set(weight - 1, [keyList.shift()])
+      let [secondHighestWeight, secondHighestKeyList] = begin.next()
+      if (secondHighestWeight === undefined) {
+        this.weightMap.set(highestWeight - 1, [highestWeightKeys.shift()])
       } else {
-        nextKeyList.push(keyList.shift())
+        secondHighestKeyList.push(highestWeightKeys.shift())
       }
 
-      if (keyList.length === 0) {
-        this.weightMap.delete(weight)
+      if (highestWeightKeys.length === 0) {
+        this.weightMap.delete(highestWeight)
       }
     }
 
@@ -102,13 +106,55 @@ class BucketAssigner
         // The 1st bucketIdx of the unassignKey is reassigned to the new key
         const bucketIdx = bucketIdxs.shift()
         bucketIdxsForThisKey.push(bucketIdx)
-        this.bucketIdxToKey.set(bucketIdx, key)
-
         assignmentCallback(bucketIdx, key)
         unassignmentCallback(bucketIdx, unassignKey)
       }
     }
 
+    return true
+  }
+
+  removeKey(key, assignmentCallback, unassignmentCallback){
+    const bucketIds = this.keyToBucketIdxs.get(key)
+    if (bucketIds === undefined) {
+      return false
+    } else if (!this.reserveKeys.empty()) {
+      this.keyToBucketIdxs.delete(key)
+      const newKey = this.reserveKeys.shift()
+      this.keyToBucketIdxs.set(newKey, bucketIds)
+      bucketIds.forEach(bucketIdx => {
+        assignmentCallback(bucketIdx, newKey)
+      })
+
+      return true
+    } else if (this.numKeys() === 1) {
+      // Removing the last key
+      this.keyToBucketIdxs.clear()
+      this.weightMap.clear()
+      return true
+    }
+
+    // Get the bucket indices for the key
+    const bucketIdxs = this.keyToBucketIdxs.get(key)
+    bucketIdxs.forEach(bucketIdx => {
+      const end = this.weightMap.entries().Array().reverse().next()
+      const [lowestWeight, lowestWeightKeys] = end.value
+      const bucketIdxToTopup = bucketIdxs.shift()
+      this.keyToBucketIdxs.get(bucketIdxToTopup).push(bucketIdx)
+      assignmentCallback(bucketIdx, bucketIdxToTopup)// Here
+      const [secondHighestKeyList, secondHighestWeight] = end.next()
+      if (secondHighestKeyList === undefined) {
+        this.weightMap.set(lowestWeight + 1, [lowestWeightKeys.shift()])
+      } else {
+        secondHighestKeyList.push(lowestWeightKeys.shift())
+      }
+
+
+      
+      this.bucketIdxToKey.delete(bucketIdx)
+      unassignmentCallback(bucketIdx, key)
+    })
+    
     return true
   }
 }
