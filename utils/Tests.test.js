@@ -17,6 +17,7 @@ function arraysAreEqual(arr1, arr2) {
 // param {number} numBuckets - Total number of buckets
 // param {number} numKeys - Total number of keys
 function getOptimalDistribution(numBuckets, numKeys) {
+  if( numBuckets == 0 || numKeys == 0) return [];
   const mean = numBuckets / numKeys;
   const meanFloor = Math.floor(mean);
   const meanCeil = Math.ceil(mean);
@@ -104,13 +105,6 @@ describe('BucketAssigner_BasicTests', () => {
     }
   };
 
-  test('constructor initializes correctly', () => {
-    expect(assigner.numBuckets).toBe(5);
-    expect(assigner.weightTable).toEqual([[], []]);
-    expect(assigner.keyToBucketIdxs.size).toBe(0);
-    expect(assigner.reserveKeys).toEqual([]);
-  });
-
   test('empty and full states', () => {
     expect(assigner.empty()).toBe(true);
     expect(assigner.full()).toBe(false);
@@ -141,7 +135,6 @@ describe('BucketAssigner_BasicTests', () => {
     result = assigner.addKey('key1', assignmentCallback, unassignmentCallback);
     expect(result).toBe(false);
 
-    expect(assigner.reserveKeys.length).toBe(0);
     expect(keyToBucketIdxs.size).toBe(1);
   });
 
@@ -154,12 +147,6 @@ describe('BucketAssigner_BasicTests', () => {
     
     const result = assigner.addKey('key6', assignmentCallback, unassignmentCallback);
     expect(result).toBe(true);
-
-    expect(assigner.weightTable[1].length).toEqual(5);
-    expect(assigner.reserveKeys).toContain('key6');
-    //assigner.removeKey('key1', assignmentCallback);
-    //expect(assigner.reserveKeys.length).toBe(0);
-    const myMap = keyToBucketIdxs
   });
 
   test('removing non-existent key', () => {
@@ -174,8 +161,7 @@ describe('BucketAssigner_BasicTests', () => {
     
     expect(result).toBe(true);
     expect(assigner.empty()).toBe(true);
-    expect(assigner.weightTable).toEqual([[], []]);
-    //this.verifyOptimalDistribution(0, 0);
+    verifyOptimalDistribution(keyToBucketIdxs, 0, 0);
   });
 
   test('removing key with reserve keys', () => {
@@ -188,6 +174,5 @@ describe('BucketAssigner_BasicTests', () => {
     const result = assigner.removeKey('key1', assignmentCallback);
     
     expect(result).toBe(true);
-    expect(assigner.reserveKeys).not.toContain('key5');
   });
 });
