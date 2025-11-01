@@ -67,7 +67,6 @@ class BucketAssigner
     const numKeysToReassign = Math.floor(mean)
     const evenDistribution = (this.numBuckets % (this.keyToBucketIdxs.size + 1)) === 0
 
-    console.log(`Adding key ${key}: mean=${mean}, numKeysToReassign=${numKeysToReassign}, evenDistribution=${evenDistribution}, weightTable=${JSON.stringify(this.weightTable)}`);
     // key -> num of buckets to snatch
     const snatchMap = new Map()
     for (let i = 0; i < numKeysToReassign; i++) {
@@ -87,7 +86,6 @@ class BucketAssigner
       }
     }
 
-    console.log('Snatch map:', snatchMap);
 
     if (evenDistribution) {
       this.weightTable[1].push(key)

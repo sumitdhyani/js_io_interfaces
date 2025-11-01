@@ -11,7 +11,6 @@ describe('BucketAssigner_BasicTests', () => {
   });
 
   const assignmentCallback = (bucketIdx, key) => {
-    console.log('Assigning bucket', bucketIdx, 'to key', key);
     if (!keyToBucketIdxs.has(key)) {
       keyToBucketIdxs.set(key, []);
     }
@@ -20,7 +19,6 @@ describe('BucketAssigner_BasicTests', () => {
   };
 
   const unassignmentCallback = (bucketIdx, key) => {
-    console.log('Unassigning bucket', bucketIdx, 'from key', key);
     if (keyToBucketIdxs.has(key)) {
       const bucketList = keyToBucketIdxs.get(key);
       let keyIndex = bucketList.indexOf(bucketIdx);
@@ -54,7 +52,6 @@ describe('BucketAssigner_BasicTests', () => {
     const remainder = numBuckets % numKeys;
     const equalDistributionPossible = remainder === 0;
 
-    console.log(`Floor: ${floor}, Ceil: ${ceil}, Mean: ${mean}, Remainder: ${remainder}, EqualDistributionPossible: ${equalDistributionPossible}`);
     let expected = []
     if (equalDistributionPossible) {
       expected = Array(numKeys).fill(numBuckets / numKeys);
@@ -83,9 +80,6 @@ describe('BucketAssigner_BasicTests', () => {
     
     Array.from(testMap.values()).forEach((buckets) => actual.push(buckets.length));
     actual.sort();
-    console.log('Expected distribution:', expected);
-    console.log('Actual distribution:', actual);
-    console.log('Test map:', testMap);
     return arraysAreEqual(expected, actual);
   }
 
@@ -100,25 +94,19 @@ describe('BucketAssigner_BasicTests', () => {
     expect(assigner.empty()).toBe(true);
     expect(assigner.full()).toBe(false);
 
-    console.log('Adding key1')
     assigner.addKey('key1', assignmentCallback, unassignmentCallback);
 
-    console.log('keyToBucketIdxs:', keyToBucketIdxs);
     expect(verifyOptimalDistribution(keyToBucketIdxs, 5, 1)).toBe(true);
 
-    console.log('Adding key2')
     assigner.addKey('key2', assignmentCallback, unassignmentCallback);
     expect(verifyOptimalDistribution(keyToBucketIdxs, 5, 2)).toBe(true);
 
-    console.log('Adding key3')
     assigner.addKey('key3', assignmentCallback, unassignmentCallback);
     expect(verifyOptimalDistribution(keyToBucketIdxs, 5, 3)).toBe(true);
 
-    console.log('Adding key4')
     assigner.addKey('key4', assignmentCallback, unassignmentCallback);
     expect(verifyOptimalDistribution(keyToBucketIdxs, 5, 4)).toBe(true);
 
-    console.log('Adding key5')
     assigner.addKey('key5', assignmentCallback, unassignmentCallback);
     expect(verifyOptimalDistribution(keyToBucketIdxs, 5, 5)).toBe(true);
 
@@ -151,7 +139,6 @@ describe('BucketAssigner_BasicTests', () => {
     //assigner.removeKey('key1', assignmentCallback);
     //expect(assigner.reserveKeys.length).toBe(0);
     const myMap = keyToBucketIdxs
-    console.log('Reserve Keys after removal:', myMap);
   });
 
   test('removing non-existent key', () => {
