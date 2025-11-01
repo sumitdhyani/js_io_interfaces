@@ -1,6 +1,77 @@
 // BucketAssigner.test.js
 const BucketAssigner = require('./BucketAssigner');
 
+function arraysAreEqual(arr1, arr2) {
+  if (arr1.length !== arr2.length) {
+    return false;
+  }
+  for (let i = 0; i < arr1.length; i++) {
+    if (arr1[i] !== arr2[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Return array with opimal distribution, i.e distribution with minimum variance
+// param {number} numBuckets - Total number of buckets
+// param {number} numKeys - Total number of keys
+function getOptimalDistribution(numBuckets, numKeys) {
+  const mean = numBuckets / numKeys;
+  const meanFloor = Math.floor(mean);
+  const meanCeil = Math.ceil(mean);
+  const remainder = numBuckets % numKeys;
+  const equalDistributionPossible = remainder === 0;
+
+  let expected = []
+  if (equalDistributionPossible) {
+    expected = Array(numKeys).fill(numBuckets / numKeys);
+  } else {
+    const floorDistance = mean - meanFloor;
+    const ceilDistance = meanCeil - mean;
+
+    // If youre thinking,  it's same as Math.ceil(numKeys / 2), you're wrong.
+    // It's not when numKeys is even, it's when numKeys is odd.
+    const higherNumber = Math.floor(numKeys / 2) + 1;
+    const lowerNumber = numKeys - higherNumber;
+
+    if (floorDistance === ceilDistance) {
+      expected = Array(Math.floor(numKeys / 2)).fill(meanFloor).
+        concat(Array(Math.ceil(numKeys / 2)).fill(meanCeil)).sort();
+    } else if (floorDistance < ceilDistance) {
+      expected = Array(Math.ceil(higherNumber)).fill(meanFloor).
+        concat(Array(lowerNumber).fill(meanCeil));
+    } else {
+      expected = Array(Math.ceil(lowerNumber)).fill(meanFloor).
+        concat(Array(Math.floor(higherNumber)).fill(meanCeil));
+    }
+  }
+
+  return expected;
+}
+
+// Test helper to verify if the distribution of buckets among keys is optimal
+// param {Map} testMap - Map of key to list of bucket indices assigned to it
+// param {number} numBuckets - Total number of buckets
+// param {number} numKeys - Total number of keys
+function verifyOptimalDistribution(testMap, numBuckets, numKeys) {
+
+  const expected = getOptimalDistribution(numBuckets, numKeys);
+  if (expected.reduce((acc, val) => {
+    acc += val;
+    return acc;
+  }, 0) !== numBuckets) {
+    throw new Error('Expected distribution does not sum up to numBuckets');
+  }
+
+  const actual = []
+
+  Array.from(testMap.values()).forEach((buckets) => actual.push(buckets.length));
+  actual.sort();
+  return arraysAreEqual(expected, actual);
+}
+
+
 describe('BucketAssigner_BasicTests', () => {
   let assigner;
   let keyToBucketIdxs;
@@ -32,56 +103,6 @@ describe('BucketAssigner_BasicTests', () => {
 
     }
   };
-
-  function arraysAreEqual(arr1, arr2) {
-    if (arr1.length !== arr2.length) {
-      return false;
-    }
-    for (let i = 0; i < arr1.length; i++) {
-      if (arr1[i] !== arr2[i]) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  function verifyOptimalDistribution(testMap, numBuckets, numKeys)  {
-    const mean = numBuckets / numKeys;
-    const floor = Math.floor(mean);
-    const ceil = Math.ceil(mean);
-    const remainder = numBuckets % numKeys;
-    const equalDistributionPossible = remainder === 0;
-
-    let expected = []
-    if (equalDistributionPossible) {
-      expected = Array(numKeys).fill(numBuckets / numKeys);
-    } else {
-      const floorDistance = mean - floor;
-      const ceilDistance = ceil - mean;
-
-      // If youre thinking,  it's same as Math.ceil(numKeys / 2), you're wrong.
-      // It's not when numKeys is even, it's when numKeys is odd that it differs.
-      const higherNumber = Math.floor(numKeys / 2) + 1;
-      const lowerNumber = numKeys - higherNumber;
-
-      if (floorDistance === ceilDistance) {
-        expected = Array(Math.floor(numKeys / 2)).fill(floor).
-                   concat(Array(Math.ceil(numKeys / 2)).fill(ceil)).sort();
-      } else if (floorDistance < ceilDistance) {
-        expected = Array(Math.ceil(higherNumber)).fill(floor).
-                   concat(Array(lowerNumber).fill(ceil));
-      } else {
-        expected = Array(Math.ceil(lowerNumber)).fill(floor).
-                   concat(Array(Math.floor(higherNumber)).fill(ceil));
-      }
-    }
-
-    const actual = []
-    
-    Array.from(testMap.values()).forEach((buckets) => actual.push(buckets.length));
-    actual.sort();
-    return arraysAreEqual(expected, actual);
-  }
 
   test('constructor initializes correctly', () => {
     expect(assigner.numBuckets).toBe(5);
