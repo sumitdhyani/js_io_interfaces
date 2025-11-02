@@ -1,6 +1,41 @@
 // BucketAssigner.test.js
 const BucketAssigner = require('./BucketAssigner');
 
+const assignmentCallback = (keyToBucketIdxs, bucketIdx, key) => {
+  if (!keyToBucketIdxs.has(key)) {
+    keyToBucketIdxs.set(key, []);
+  }
+  const bucketList = keyToBucketIdxs.get(key);
+  bucketList.push(bucketIdx);
+};
+
+const unassignmentCallback = (keyToBucketIdxs, bucketIdx, key) => {
+  if (keyToBucketIdxs.has(key)) {
+    const bucketList = keyToBucketIdxs.get(key);
+    let keyIndex = bucketList.indexOf(bucketIdx);
+    if (keyIndex !== -1) {
+      bucketList.splice(keyIndex, 1);
+    }
+    if (bucketList.length === 0) {
+      keyToBucketIdxs.delete(key);
+    }
+  }
+};
+
+function getAssignmentCallback(keyToBucketIdxs)
+{
+  return (bucketIdx, key) =>{
+    assignmentCallback(keyToBucketIdxs, bucketIdx, key)
+  }
+}
+
+function getUnassignmentCallback(keyToBucketIdxs) {
+  return (bucketIdx, key) => {
+    unassignmentCallback(keyToBucketIdxs, bucketIdx, key)
+  }
+}
+
+
 function arraysAreEqual(arr1, arr2) {
   if (arr1.length !== arr2.length) {
     return false;
@@ -85,47 +120,24 @@ describe('BucketAssigner_BasicTests', () => {
     keyToBucketIdxs = new Map();
   });
 
-  const assignmentCallback = (bucketIdx, key) => {
-    if (!keyToBucketIdxs.has(key)) {
-      keyToBucketIdxs.set(key, []);
-    }
-    const bucketList = keyToBucketIdxs.get(key);
-    bucketList.push(bucketIdx);
-  };
-
-  const unassignmentCallback = (bucketIdx, key) => {
-    if (keyToBucketIdxs.has(key)) {
-      const bucketList = keyToBucketIdxs.get(key);
-      let keyIndex = bucketList.indexOf(bucketIdx);
-      if (keyIndex !== -1) {
-        bucketList.splice(keyIndex, 1);
-      }
-
-      if (bucketList.length === 0) {
-        keyToBucketIdxs.delete(key);
-      }
-
-    }
-  };
-
   test('empty and full states', () => {
     expect(assigner.empty()).toBe(true);
     expect(assigner.full()).toBe(false);
 
-    assigner.addKey('key1', assignmentCallback, unassignmentCallback);
+    assigner.addKey('key1', getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
 
     expect(verifyOptimalDistribution(keyToBucketIdxs, 5, 1)).toBe(true);
 
-    assigner.addKey('key2', assignmentCallback, unassignmentCallback);
+    assigner.addKey('key2', getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
     expect(verifyOptimalDistribution(keyToBucketIdxs, 5, 2)).toBe(true);
 
-    assigner.addKey('key3', assignmentCallback, unassignmentCallback);
+    assigner.addKey('key3', getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
     expect(verifyOptimalDistribution(keyToBucketIdxs, 5, 3)).toBe(true);
 
-    assigner.addKey('key4', assignmentCallback, unassignmentCallback);
+    assigner.addKey('key4', getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
     expect(verifyOptimalDistribution(keyToBucketIdxs, 5, 4)).toBe(true);
 
-    assigner.addKey('key5', assignmentCallback, unassignmentCallback);
+    assigner.addKey('key5', getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
     expect(verifyOptimalDistribution(keyToBucketIdxs, 5, 5)).toBe(true);
 
     expect(assigner.empty()).toBe(false);
@@ -133,34 +145,34 @@ describe('BucketAssigner_BasicTests', () => {
   });
 
   test('adding first key', () => {
-    let result = assigner.addKey('key1', assignmentCallback, unassignmentCallback);
+    let result = assigner.addKey('key1', getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
     expect(result).toBe(true);
-    result = assigner.addKey('key1', assignmentCallback, unassignmentCallback);
+    result = assigner.addKey('key1', getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
     expect(result).toBe(false);
 
     expect(keyToBucketIdxs.size).toBe(1);
   });
 
   test('adding key when full', () => {
-    assigner.addKey('key1', assignmentCallback, unassignmentCallback);
-    assigner.addKey('key2', assignmentCallback, unassignmentCallback);
-    assigner.addKey('key3', assignmentCallback, unassignmentCallback);
-    assigner.addKey('key4', assignmentCallback, unassignmentCallback);
-    assigner.addKey('key5', assignmentCallback, unassignmentCallback);
+    assigner.addKey('key1', getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
+    assigner.addKey('key2', getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
+    assigner.addKey('key3', getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
+    assigner.addKey('key4', getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
+    assigner.addKey('key5', getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
     
-    const result = assigner.addKey('key6', assignmentCallback, unassignmentCallback);
+    const result = assigner.addKey('key6', getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
     expect(result).toBe(true);
   });
 
   test('removing non-existent key', () => {
-    const result = assigner.removeKey('nonexistent', assignmentCallback);
+    const result = assigner.removeKey('nonexistent', getAssignmentCallback(keyToBucketIdxs));
     expect(result).toBe(false);
   });
 
   test('removing last key', () => {
-    assigner.addKey('key1', assignmentCallback, unassignmentCallback);
+    assigner.addKey('key1', getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
     keyToBucketIdxs.delete('key1');
-    const result = assigner.removeKey('key1', assignmentCallback);
+    const result = assigner.removeKey('key1', getAssignmentCallback(keyToBucketIdxs));
     
     expect(result).toBe(true);
     expect(assigner.empty()).toBe(true);
@@ -168,13 +180,13 @@ describe('BucketAssigner_BasicTests', () => {
   });
 
   test('removing key with reserve keys', () => {
-    assigner.addKey('key1', assignmentCallback, unassignmentCallback);
-    assigner.addKey('key2', assignmentCallback, unassignmentCallback);
-    assigner.addKey('key3', assignmentCallback, unassignmentCallback);
-    assigner.addKey('key4', assignmentCallback, unassignmentCallback);
-    assigner.addKey('key5', assignmentCallback, unassignmentCallback); // goes to reserve
+    assigner.addKey('key1', getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
+    assigner.addKey('key2', getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
+    assigner.addKey('key3', getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
+    assigner.addKey('key4', getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
+    assigner.addKey('key5', getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs)); // goes to reserve
 
-    const result = assigner.removeKey('key1', assignmentCallback);
+    const result = assigner.removeKey('key1', getAssignmentCallback(keyToBucketIdxs));
     
     expect(result).toBe(true);
   });
@@ -189,33 +201,12 @@ describe('BucketAssigner_CoreLogicTests', () => {
     keyToBucketIdxs = new Map();
   });
 
-  const assignmentCallback = (bucketIdx, key) => {
-    if (!keyToBucketIdxs.has(key)) {
-      keyToBucketIdxs.set(key, []);
-    }
-    const bucketList = keyToBucketIdxs.get(key);
-    bucketList.push(bucketIdx);
-  };
-
-  const unassignmentCallback = (bucketIdx, key) => {
-    if (keyToBucketIdxs.has(key)) {
-      const bucketList = keyToBucketIdxs.get(key);
-      let keyIndex = bucketList.indexOf(bucketIdx);
-      if (keyIndex !== -1) {
-        bucketList.splice(keyIndex, 1);
-      }
-      if (bucketList.length === 0) {
-        keyToBucketIdxs.delete(key);
-      }
-    }
-  };
-
   test('prime number of buckets with coprime number of keys', () => {
     // Prime number of buckets (7) with coprime number of keys (4)
     // This tests if the distribution logic handles non-divisible cases correctly
     assigner = new BucketAssigner(7);
     for (let i = 0; i < 4; i++) {
-      assigner.addKey(`key${i}`, assignmentCallback, unassignmentCallback);
+      assigner.addKey(`key${i}`, getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
       expect(verifyOptimalDistribution(keyToBucketIdxs, 7, i + 1)).toBe(true);
     }
   });
@@ -224,11 +215,11 @@ describe('BucketAssigner_CoreLogicTests', () => {
     // This tests if internal state gets corrupted when same key is rapidly removed and added
     assigner = new BucketAssigner(5);
     for (let i = 0; i < 100; i++) {
-      assigner.addKey('key1', assignmentCallback, unassignmentCallback);
+      assigner.addKey('key1', getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
       keyToBucketIdxs.delete('key1'); // Client handles cleanup before removal
-      assigner.removeKey('key1', assignmentCallback);
+      assigner.removeKey('key1', getAssignmentCallback(keyToBucketIdxs));
     }
-    assigner.addKey('key1', assignmentCallback, unassignmentCallback);
+    assigner.addKey('key1', getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
     expect(verifyOptimalDistribution(keyToBucketIdxs, 5, 1)).toBe(true);
   });
 
@@ -238,7 +229,7 @@ describe('BucketAssigner_CoreLogicTests', () => {
     for (let i = 2; i < fib.length; i++) {
       assigner = new BucketAssigner(fib[i]);
       for (let j = 0; j < fib[i - 1]; j++) {
-        assigner.addKey(`key${j}`, assignmentCallback, unassignmentCallback);
+        assigner.addKey(`key${j}`, getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
       }
       
       expect(verifyOptimalDistribution(keyToBucketIdxs, fib[i], fib[i - 1])).toBe(true);
@@ -253,7 +244,7 @@ describe('BucketAssigner_CoreLogicTests', () => {
     let i
     for (i = 1; i <= 16; i *= 2) {
       for (let j = 0; j < i; j++) {
-        assigner.addKey(`key${j}`, assignmentCallback, unassignmentCallback);
+        assigner.addKey(`key${j}`, getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
       }
       console.log(`i : ${i}`)
       expect(verifyOptimalDistribution(keyToBucketIdxs, 16, i)).toBe(true);
@@ -263,8 +254,8 @@ describe('BucketAssigner_CoreLogicTests', () => {
   test('bucket index uniqueness', () => {
     // Test if any bucket index is assigned more than once
     assigner = new BucketAssigner(5);
-    assigner.addKey('key1', assignmentCallback, unassignmentCallback);
-    assigner.addKey('key2', assignmentCallback, unassignmentCallback);
+    assigner.addKey('key1', getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
+    assigner.addKey('key2', getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
 
     const allBuckets = Array.from(keyToBucketIdxs.values()).flat();
     const uniqueBuckets = new Set(allBuckets);
@@ -273,7 +264,6 @@ describe('BucketAssigner_CoreLogicTests', () => {
 
   test('distribution symmetry', () => {
     // Test if order of key addition affects final distribution
-    assigner = new BucketAssigner(6);
     const sequences = [
       ['key1', 'key2', 'key3'],
       ['key3', 'key1', 'key2'],
@@ -281,8 +271,9 @@ describe('BucketAssigner_CoreLogicTests', () => {
     ];
 
     const distributions = sequences.map(seq => {
+      assigner = new BucketAssigner(6);
       keyToBucketIdxs.clear();
-      seq.forEach(key => assigner.addKey(key, assignmentCallback, unassignmentCallback));
+      seq.forEach(key => assigner.addKey(key, getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs)));
       return Array.from(keyToBucketIdxs.values()).map(arr => arr.length).sort();
     }); 
 
@@ -297,11 +288,12 @@ describe('BucketAssigner_CoreLogicTests', () => {
     const keys = ['key1', 'key2', 'key3', 'key4', 'key5'];
 
     // Add all keys
-    keys.forEach(key => assigner.addKey(key, assignmentCallback, unassignmentCallback));
+    keys.forEach(key => assigner.addKey(key, getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs)));
 
     // Remove keys in specific order to try to break the redistribution logic
     keys.forEach(key => {
-      assigner.removeKey(key, assignmentCallback);
+      keyToBucketIdxs.delete(key)
+      assigner.removeKey(key, getAssignmentCallback(keyToBucketIdxs));
       const remainingKeys = keys.filter(k => keyToBucketIdxs.has(k));
       if (remainingKeys.length > 0) {
         expect(verifyOptimalDistribution(keyToBucketIdxs, 7, remainingKeys.length)).toBe(true);
@@ -314,12 +306,13 @@ describe('BucketAssigner_CoreLogicTests', () => {
     assigner = new BucketAssigner(8);
 
     // Add keys to create maximum imbalance
-    for (let i = 0; i < 7; i++) {
-      assigner.addKey(`key${i}`, assignmentCallback, unassignmentCallback);
+    for (let i = 1; i < 8; i++) {
+      assigner.addKey(`key${i}`, getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
     }
 
     // Remove middle key to force maximum redistribution
-    assigner.removeKey('key3', assignmentCallback);
+    keyToBucketIdxs.delete(`key4`)
+    assigner.removeKey('key4', getAssignmentCallback(keyToBucketIdxs));
     expect(verifyOptimalDistribution(keyToBucketIdxs, 8, 6)).toBe(true);
   });
 });
