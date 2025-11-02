@@ -1,3 +1,7 @@
+
+// Expectation from caller:
+// 1. numBuckets > 0
+// 2. Don't call addKey/removeKey methods in the assignment/Unassignment callbacks
 class BucketAssigner
 {
   constructor(numBuckets)
