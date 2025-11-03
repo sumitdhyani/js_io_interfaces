@@ -26,7 +26,7 @@ class BucketAssigner
     // This way, we always maintain only 2 weight levels
     // If there are keys in just one level, it implies that all keys have the same weight and that level will always be the upper level
     // For non-zero no. of keys, lower level can be empty, but upper level will never be empty
-    this.weightTable = [[],[]]
+    this.weightTable = [new Set(),new Set()]
 
     this.keyToBucketIdxs = new Map()
 
@@ -38,7 +38,7 @@ class BucketAssigner
   }
 
   full(){
-    return this.weightTable[1].length === this.numBuckets
+    return this.weightTable[1].size === this.numBuckets
   }
 
   empty() {
@@ -68,7 +68,7 @@ class BucketAssigner
     
     // 1st key being added
     else if (this.empty()) {
-      this.weightTable[1].push(key)
+      this.weightTable[1].add(key)
       this.keyToBucketIdxs.set(key, [])
       for (let i = 0; i < this.numBuckets; i++) {
         this.keyToBucketIdxs.get(key).push(i)
@@ -84,8 +84,9 @@ class BucketAssigner
     // key -> num of buckets to snatch
     const snatchMap = new Map()
     for (let i = 0; i < numKeysToReassign; i++) {
-      const keySnatchedFrom = this.weightTable[1].pop()
-      this.weightTable[0].push(keySnatchedFrom)
+      const keySnatchedFrom = this.weightTable[1].values().next().value
+      this.weightTable[1].delete(keySnatchedFrom)
+      this.weightTable[0].add(keySnatchedFrom)
       const numSnatchForThisKey = snatchMap.get(keySnatchedFrom)
       if (numSnatchForThisKey === undefined) {
         snatchMap.set(keySnatchedFrom, 1)
@@ -93,18 +94,18 @@ class BucketAssigner
         snatchMap.set(keySnatchedFrom, numSnatchForThisKey + 1)
       }
 
-      if (this.weightTable[1].length === 0) {
+      if (this.weightTable[1].size === 0) {
         this.weightTable.pop()
         // insert empty list at the beginning
-        this.weightTable.unshift([])
+        this.weightTable.unshift(new Set())
       }
     }
 
 
     if (evenDistribution) {
-      this.weightTable[1].push(key)
+      this.weightTable[1].add(key)
     } else {
-      this.weightTable[0].push(key)
+      this.weightTable[0].add(key)
     }
 
     const bucketIdxsForNewKey = []
@@ -123,47 +124,40 @@ class BucketAssigner
   }
 
   removeKeyFromWeightMap(key) {
-    let keyList = this.weightTable[0]
-    let keyIndex = keyList.indexOf(key) 
-    if (keyIndex !== -1) {
-      keyList.splice(keyIndex, 1)
-      return
+    if (this.weightTable[0].delete(key)) {
+      return  
     }
 
-    keyList = this.weightTable[1]
-    keyIndex = keyList.indexOf(key)
-    if (keyIndex !== -1) {
-      keyList.splice(keyIndex, 1)
-      return
-    }
+    this.weightTable[1].delete(key)
 
-    if(this.weightTable[1].length === 0) {
+    // If there's only 1 non-empty level, it should be the top level
+    if (this.weightTable[1].size === 0 &&
+        this.weightTable[0].size > 0) {
       this.weightTable.pop()
-      this.weightTable.unshift([])
+      this.weightTable.unshift(new Set())
     }
   }
 
   replaceKeyInWeightMap(oldKey, newKey) {
-    for (let weight = 0; weight < this.weightTable.length; weight++) {
-      const keyList = this.weightTable[weight]
-      const keyIndex = keyList.indexOf(oldKey)
-      if (keyIndex !== -1) {
-        keyList[keyIndex] = newKey
-        return
-      }
+    if (this.weightTable[0].delete(oldKey)) {
+      this.weightTable[0].add(newKey)
+      return
     }
+
+    this.weightTable[1].delete(oldKey)
+    this.weightTable[1].add(newKey)
   }
 
   removeKey(key, assignmentCallback) {
-    const bucketIdxs = this.keyToBucketIdxs.get(key)
+    const orphannedBucketIdxs = this.keyToBucketIdxs.get(key)
     // Non-existent key
-    if (bucketIdxs === undefined) {
+    if (orphannedBucketIdxs === undefined) {
       return false
     } else if (this.reserveKeys.length !== 0) {
       this.keyToBucketIdxs.delete(key)
       const newKey = this.reserveKeys.pop()
-      this.keyToBucketIdxs.set(newKey, bucketIdxs)
-      bucketIdxs.forEach(bucketIdx => {
+      this.keyToBucketIdxs.set(newKey, orphannedBucketIdxs)
+      orphannedBucketIdxs.forEach(bucketIdx => {
         assignmentCallback(bucketIdx, newKey)
       })
       this.replaceKeyInWeightMap(key, newKey)
@@ -172,27 +166,29 @@ class BucketAssigner
     } else if (this.numKeys() === 1) {
       // Removing the last key
       this.keyToBucketIdxs.clear()
-      this.weightTable = [[],[]]
+      this.weightTable = [new Set(),new Set()]
       return true
     }
 
     this.keyToBucketIdxs.delete(key)
     this.removeKeyFromWeightMap(key)
     // Get the bucket indices for the key
-    bucketIdxs.forEach(bucketIdx => {
-      if (this.weightTable[0].length === 0) {
-        const keyToReassign = this.weightTable[1].pop()
-        this.weightTable.push([])
+    orphannedBucketIdxs.forEach(bucketIdx => {
+      // Get the lowest weight key
+      if (this.weightTable[0].size === 0) {
+        const keyToHandleOrphannedBucket = this.weightTable[1].values().next().value
+        this.weightTable[1].delete(keyToHandleOrphannedBucket)
+        this.weightTable.push(new Set())
         this.weightTable.shift()
-        this.weightTable[1].push(keyToReassign)
-         // Get the lowest weight key
-        this.keyToBucketIdxs.get(keyToReassign).push(bucketIdx)
-        assignmentCallback(bucketIdx, keyToReassign)
+        this.weightTable[1].add(keyToHandleOrphannedBucket)
+        this.keyToBucketIdxs.get(keyToHandleOrphannedBucket).push(bucketIdx)
+        assignmentCallback(bucketIdx, keyToHandleOrphannedBucket)
       } else {
-        const keyToReassign = this.weightTable[0].pop() // Get the lowest weight key
-        this.weightTable[1].push(keyToReassign)
-        this.keyToBucketIdxs.get(keyToReassign).push(bucketIdx)  
-        assignmentCallback(bucketIdx, keyToReassign)
+        const keyToHandleOrphannedBucket = this.weightTable[0].values().next().value
+        this.weightTable[0].delete(keyToHandleOrphannedBucket)
+        this.weightTable[1].add(keyToHandleOrphannedBucket)
+        this.keyToBucketIdxs.get(keyToHandleOrphannedBucket).push(bucketIdx)
+        assignmentCallback(bucketIdx, keyToHandleOrphannedBucket)
       }
     })
     

@@ -52,7 +52,10 @@ function logInternalState(assigner) {
   const netSum = Array.from(assigner.keyToBucketIdxs.values()).reduce((acc, list) =>{
     return acc + list.length
   }, 0)
-  console.log(`Internal State: ${JSON.stringify(Array.from(assigner.keyToBucketIdxs.entries()))}, \nreserve: ${JSON.stringify(assigner.reserveKeys)}, \nNetSum: ${netSum}, \nweightTable: ${JSON.stringify(assigner.weightTable)}`)
+
+  const weightTableAsLists = []
+  assigner.weightTable.forEach((set) => weightTableAsLists.push(Array.from(set.values())) )
+  console.log(`Internal State: ${JSON.stringify(Array.from(assigner.keyToBucketIdxs.entries()))}, \nreserve: ${JSON.stringify(assigner.reserveKeys)}, \nNetSum: ${netSum}, \nweightTable: ${JSON.stringify(weightTableAsLists)}`)
 
 }
 // Return array with opimal distribution, i.e distribution with minimum variance
