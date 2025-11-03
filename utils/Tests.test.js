@@ -110,7 +110,7 @@ function verifyOptimalDistribution(testMap, numBuckets, numKeys) {
 }
 
 
-describe('BucketAssigner_BasicTests', () => {
+describe('ai_gen_BucketAssigner_BasicTests', () => {
   let assigner;
   let keyToBucketIdxs;
   
@@ -192,7 +192,7 @@ describe('BucketAssigner_BasicTests', () => {
 });
 
 // ...existing code...
-describe('BucketAssigner_CoreLogicTests', () => {
+describe('ai_gen_BucketAssigner_CoreLogicTests', () => {
   let assigner;
   let keyToBucketIdxs;
 
@@ -336,7 +336,7 @@ describe('BucketAssigner_CoreLogicTests', () => {
   });
 });
 
-describe('BucketAssigner_RobustTests', () => {
+describe('ai_gen_BucketAssigner_RobustTests', () => {
   let assigner;
   let keyToBucketIdxs;
 
@@ -445,5 +445,40 @@ describe('BucketAssigner_RobustTests', () => {
       const allBuckets = Array.from(keyToBucketIdxs.values()).flat();
       expect(new Set(allBuckets).size).toBe(allBuckets.length);
     }
+  });
+});
+
+describe('manual', () => {
+  let assigner;
+  let keyToBucketIdxs;
+
+  beforeEach(() => {
+    keyToBucketIdxs = new Map();
+    assigner = new BucketAssigner(5);
+  });
+
+  test('reserve_keys', () => {
+    const keys = Array.from({ length: 6 }, (_, i) => `k${i}`);
+    keys.forEach(key => assigner.addKey(key, getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs)));
+    expect(verifyOptimalDistribution(keyToBucketIdxs, 5, keyToBucketIdxs.size)).toBe(true);
+
+    for (let i = 0; i < keys.length; i++) {
+      let removalKey = `k${i}`
+      console.log(`removalKey: ${removalKey}`)
+      if (keyToBucketIdxs.delete(removalKey)) {
+        assigner.removeKey(removalKey, getAssignmentCallback(keyToBucketIdxs))
+        expect(verifyOptimalDistribution(keyToBucketIdxs, 5, keyToBucketIdxs.size)).toBe(true);
+      }
+    }
+  });
+
+  test('even_distribution', () => {
+    const numBuckets = 10;
+    const numKeys = 5;
+
+    assigner = new BucketAssigner(numBuckets)
+    const keys = Array.from({ length: numKeys }, (_, i) => `k${i}`);
+    keys.forEach(key => assigner.addKey(key, getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs)));
+    expect(verifyOptimalDistribution(keyToBucketIdxs, numBuckets, numKeys)).toBe(true);
   });
 });
