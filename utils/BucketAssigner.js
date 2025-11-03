@@ -42,20 +42,30 @@ class BucketAssigner
   }
 
   empty() {
-    return this.numKeys() == 0
+    return this.numKeys() === 0
   }
 
   addKey(key, assignmentCallback, unassignmentCallback)
   {
-    // Each key has exactly 1 partition, so this new key can't do anything for now
-    if (this.full()) {
-      this.reserveKeys.push(key)
-      return true
-    }
-    // Duplicate key
-    else if (this.keyToBucketIdxs.has(key)) {
+    // Duplicate key check before potentially putting this key in the reserve store
+    // Otherwise, same key will be there in the keyToBucketIdxs and reserveKeys, which is incorrect state management
+    // This bug was found by the test:
+    // "no duplicate bucket indices after many cycles"
+    if (this.keyToBucketIdxs.has(key)) {
       return false
     }
+    // Each key has exactly 1 partition, so this new key can't do anything for now
+    else if (this.full()) {
+      // This bug was found by the test:
+      // "sequential random operations with client cleanup before remove"
+      if (this.reserveKeys.indexOf(key) === -1) {
+        this.reserveKeys.push(key)
+        return true
+      } 
+      
+      return false
+    }
+    
     // 1st key being added
     else if (this.empty()) {
       this.weightTable[1].push(key)
