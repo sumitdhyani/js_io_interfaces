@@ -48,39 +48,38 @@ function arraysAreEqual(arr1, arr2) {
   return true;
 }
 
+function logInternalState(assigner) {
+  const netSum = Array.from(assigner.keyToBucketIdxs.values()).reduce((acc, list) =>{
+    return acc + list.length
+  }, 0)
+  console.log(`Internal State: ${JSON.stringify(Array.from(assigner.keyToBucketIdxs.entries()))}, \nreserve: ${JSON.stringify(assigner.reserveKeys)}, \nNetSum: ${netSum}, \nweightTable: ${JSON.stringify(assigner.weightTable)}`)
+
+}
 // Return array with opimal distribution, i.e distribution with minimum variance
 // param {number} numBuckets - Total number of buckets
 // param {number} numKeys - Total number of keys
 function getOptimalDistribution(numBuckets, numKeys) {
-  if(numBuckets == 0 || numKeys == 0) return []
+  if (numBuckets == 0 || numKeys == 0) return []
   else if (numBuckets < numKeys) return Array(numBuckets).fill(1)
+  else if (numBuckets % numKeys == 0) return Array(numKeys).fill(numBuckets / numKeys)
+
+
+
   const mean = numBuckets / numKeys;
   const meanFloor = Math.floor(mean);
   const meanCeil = Math.ceil(mean);
-  const remainder = numBuckets % numKeys;
-  const equalDistributionPossible = remainder === 0;
 
   let expected = []
-  if (equalDistributionPossible) {
-    expected = Array(numKeys).fill(numBuckets / numKeys);
-  } else {
-    const floorDistance = mean - meanFloor;
-    const ceilDistance = meanCeil - mean;
-
-    // If youre thinking,  it's same as Math.ceil(numKeys / 2), you're wrong.
-    // It's not when numKeys is even, it's when numKeys is odd.
-    const higherNumber = Math.floor(numKeys / 2) + 1;
-    const lowerNumber = numKeys - higherNumber;
-
-    if (floorDistance === ceilDistance) {
-      expected = Array(Math.floor(numKeys / 2)).fill(meanFloor).
-        concat(Array(Math.ceil(numKeys / 2)).fill(meanCeil)).sort();
-    } else if (floorDistance < ceilDistance) {
-      expected = Array(Math.ceil(higherNumber)).fill(meanFloor).
-        concat(Array(lowerNumber).fill(meanCeil));
+  let totalBucketsUnassigned = numBuckets;
+  let totalKeysLeft = numKeys
+  while (totalBucketsUnassigned > 0) {
+    if (totalBucketsUnassigned === totalKeysLeft * meanCeil) {
+      expected = expected.concat(Array(totalKeysLeft).fill(meanCeil))
+      break;
     } else {
-      expected = Array(Math.ceil(lowerNumber)).fill(meanFloor).
-        concat(Array(Math.floor(higherNumber)).fill(meanCeil));
+      totalBucketsUnassigned -= meanFloor
+      totalKeysLeft -= 1
+      expected.push(meanFloor)
     }
   }
 
@@ -100,12 +99,12 @@ function verifyOptimalDistribution(testMap, numBuckets, numKeys) {
 
   Array.from(testMap.values()).forEach((buckets) => actual.push(buckets.length));
   actual.sort();
-  console.log(`Expected: ${JSON.stringify(expected)}, actual: ${JSON.stringify(actual)}`)
+  //console.log(`Expected: ${JSON.stringify(expected)}, actual: ${JSON.stringify(actual)}`)
   if (expected.reduce((acc, val) => {
     acc += val;
     return acc;
-  }, 0) !== numBuckets) {
-    throw new Error('Expected distribution does not sum up to numBuckets');
+  }, 0) !== numBuckets && numKeys > 0 && numBuckets > 0) {
+    throw new Error(`Expected distribution does not sum up to numBuckets, `);
   }
   return arraysAreEqual(expected, actual);
 }
@@ -246,7 +245,6 @@ describe('BucketAssigner_CoreLogicTests', () => {
       for (let j = 0; j < i; j++) {
         assigner.addKey(`key${j}`, getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
       }
-      console.log(`i : ${i}`)
       expect(verifyOptimalDistribution(keyToBucketIdxs, 16, i)).toBe(true);
     }
   });
@@ -314,5 +312,138 @@ describe('BucketAssigner_CoreLogicTests', () => {
     keyToBucketIdxs.delete(`key4`)
     assigner.removeKey('key4', getAssignmentCallback(keyToBucketIdxs));
     expect(verifyOptimalDistribution(keyToBucketIdxs, 8, 6)).toBe(true);
+  });
+
+  test('Recruiting reserve keys', () => {
+    // Test scenario where maximum number of bucket reassignments needed
+    assigner = new BucketAssigner(8);
+    keyToBucketIdxs.clear()
+
+    // Add keys to create maximum imbalance
+    for (let i = 0; i < 9; i++) {
+      assigner.addKey(`key${i}`, getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
+    }
+
+    // Remove middle key to force maximum redistribution
+    expect(verifyOptimalDistribution(keyToBucketIdxs, 8, 9)).toBe(true);
+    keyToBucketIdxs.delete(`key4`)
+    assigner.removeKey('key4', getAssignmentCallback(keyToBucketIdxs));
+    expect(verifyOptimalDistribution(keyToBucketIdxs, 8, 8)).toBe(true);
+
+    keyToBucketIdxs.delete(`key3`)
+    assigner.removeKey('key3', getAssignmentCallback(keyToBucketIdxs));
+    expect(verifyOptimalDistribution(keyToBucketIdxs, 8, 7)).toBe(true);
+  });
+});
+
+describe('BucketAssigner_RobustTests', () => {
+  let assigner;
+  let keyToBucketIdxs;
+
+  beforeEach(() => {
+    keyToBucketIdxs = new Map();
+    assigner = new BucketAssigner(5);
+  });
+
+  test('sequential random operations with client cleanup before remove', () => {
+    const keys = Array.from({ length: 10 }, (_, i) => `k${i}`);
+    for (let iter = 0; iter < 200; iter++) {
+      const key = keys[Math.floor(Math.random() * keys.length)];
+      //console.log(`key: ${key}`)
+      if (Math.random() < 0.6) {
+        // add
+        //logInternalState(assigner)
+        //console.log(`addKey: ${key}`)
+        assigner.addKey(key, getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
+        //logInternalState(assigner)
+      } else {
+        // client must clean up visible state before calling removeKey
+        if (keyToBucketIdxs.delete(key)) {
+          //logInternalState(assigner)
+          //console.log(`removeKey: ${key}`)
+          assigner.removeKey(key, getAssignmentCallback(keyToBucketIdxs));
+          //logInternalState(assigner)
+        }
+      }
+      // Verify visible assignments are optimal for the current visible key count
+      expect(verifyOptimalDistribution(keyToBucketIdxs, 5, keyToBucketIdxs.size)).toBe(true);
+    }
+  });
+
+  test('clearing client map must coincide with assigner reset', () => {
+    // populate
+    assigner.addKey('a', getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
+    assigner.addKey('b', getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
+    expect(verifyOptimalDistribution(keyToBucketIdxs, 5, keyToBucketIdxs.size)).toBe(true);
+
+    // if client clears its map it must also recreate assigner to keep in sync
+    keyToBucketIdxs.clear();
+    assigner = new BucketAssigner(5); // recreate to stay in sync
+    assigner.addKey('x', getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
+    expect(verifyOptimalDistribution(keyToBucketIdxs, 5, keyToBucketIdxs.size)).toBe(true);
+  });
+
+  test('reserve promotion requires client cleanup prior to remove', () => {
+    // fill all buckets
+    for (let i = 1; i <= 5; i++) {
+      assigner.addKey(`k${i}`, getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
+    }
+    // add a reserve key (no buckets assigned yet)
+    assigner.addKey('reserve', getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
+
+    // remove an active key: client deletes its local entries first (per contract)
+    keyToBucketIdxs.delete('k3');
+    const res = assigner.removeKey('k3', getAssignmentCallback(keyToBucketIdxs));
+    expect(res).toBe(true);
+
+    // after removal, client-visible assignments should again represent optimal distribution
+    expect(verifyOptimalDistribution(keyToBucketIdxs, 5, keyToBucketIdxs.size)).toBe(true);
+    // ensure all bucket indices are unique
+    const allBuckets = Array.from(keyToBucketIdxs.values()).flat();
+    expect(new Set(allBuckets).size).toBe(allBuckets.length);
+    // sum of assigned buckets equals numBuckets
+    const sumAssigned = allBuckets.length;
+    expect(sumAssigned).toBe(5);
+  });
+
+  test('idempotent removal semantics (client cleanup + remove)', () => {
+    assigner.addKey('z', getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
+    // client deletes its local view before calling removeKey
+    keyToBucketIdxs.delete('z');
+    const first = assigner.removeKey('z', getAssignmentCallback(keyToBucketIdxs));
+    expect(first).toBe(true);
+    // second removal should return false (already removed)
+    const second = assigner.removeKey('z', getAssignmentCallback(keyToBucketIdxs));
+    expect(second).toBe(false);
+  });
+
+  test('no duplicate bucket indices after many cycles', () => {
+    assigner = new BucketAssigner(10);
+    const names = Array.from({ length: 20 }, (_, i) => `n${i}`);
+    //console.log(`names: ${JSON.stringify(names)}`)
+    for (let i = 0; i < 200; i++) {
+      //console.log(`i: ${i}`)
+      const name = names[i % names.length];
+      //logInternalState(assigner)
+      //console.log(`Addkey: ${name}`) 
+      assigner.addKey(name, getAssignmentCallback(keyToBucketIdxs), getUnassignmentCallback(keyToBucketIdxs));
+      //logInternalState(assigner)
+      // simulate occasional removals with client cleanup
+      //console.log(`Internal KeyToBucketIdxs: ${JSON.stringify(Array.from(assigner.keyToBucketIdxs.entries()))}, reserve: ${JSON.stringify(assigner.reserveKeys)}, weightTable: ${JSON.stringify(assigner.weightTable)}`)
+      if (i % 7 === 0) {
+        const deleteKey = names[(i + 3) % names.length]
+        if (keyToBucketIdxs.delete(deleteKey)){
+          //logInternalState(assigner)
+          //console.log(`deleteKey: ${deleteKey}`)
+          assigner.removeKey(deleteKey, getAssignmentCallback(keyToBucketIdxs));
+          //logInternalState(assigner)
+        }
+      }
+      // verify visible distribution
+      expect(verifyOptimalDistribution(keyToBucketIdxs, 10, keyToBucketIdxs.size)).toBe(true);
+      // uniqueness
+      const allBuckets = Array.from(keyToBucketIdxs.values()).flat();
+      expect(new Set(allBuckets).size).toBe(allBuckets.length);
+    }
   });
 });
