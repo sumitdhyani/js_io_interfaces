@@ -9,22 +9,26 @@ class SubscriptionRouter
     // ket -> set of bucketIds
     this.keytoBucketIds = new Map()
 
-    this.bucketAssigner = bucketAssigner
+    this.bucketAssigner                       = bucketAssigner
     this.getInstrumentListFromBucketFunction  = getInstrumentListFromBucketFunction
     this.sendSubscriptionFunction             = sendSubscriptionFunction
     this.sendUnsubscriptionFunction           = sendUnsubscriptionFunction
+
+    // Thes 2 function as passed to external code
+    this.onBucketAssignment = this.onBucketAssignment.bind(this);
+    this.onBucketUnassignment = this.onBucketUnassignment.bind(this);
   }
 
   onSubscriptionRequest(bucket, request) {
     const key = this.bucketIdToKey.get(bucket)
-    if (undefined == key) return false
+    if (undefined === key) return false
     this.sendSubscriptionFunction(key, request)
     return true
   }
 
   onUnsubscriptionRequest(bucket, request) {
     const key = this.bucketIdToKey.get(bucket)
-    if (undefined == key) return false
+    if (undefined === key) return false
     this.sendUnsubscriptionFunction(key, request)
     return true
   }
@@ -49,7 +53,6 @@ class SubscriptionRouter
     requestList.forEach(request => {
       this.sendSubscriptionFunction(key, request)
     })
-
     // Remove existing arrangement for the bucket
     const existingKey = this.bucketIdToKey.get(bucket)
     if (undefined !== existingKey) {
@@ -73,7 +76,6 @@ class SubscriptionRouter
       this.sendUnsubscriptionFunction(key, request)
     })
 
-
     if (this.bucketIdToKey.get(bucket) === key) {
       this.bucketIdToKey.delete(bucket)
       this.keytoBucketIds.get(key).delete(bucket)
@@ -91,11 +93,11 @@ class SubscriptionRouter
       this.bucketIdToKey.delete(key)
     }
   
-    this.notifyKeyDeletionFunction(key, this.onBucketAssignment)
+    this.bucketAssigner.removeKey(key, this.onBucketAssignment)
   }
 
   onPriceProviderUp(key) {
-    this.notifyKeyAdditionFunction(key, this.onBucketAssignment, this.onBucketUnassignment)
+    this.bucketAssigner.addKey(key, this.onBucketAssignment, this.onBucketUnassignment)
   }
 }
 
