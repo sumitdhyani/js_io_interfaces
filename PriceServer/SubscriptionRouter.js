@@ -5,8 +5,9 @@ class SubscriptionRouter
               sendSubscriptionFunction, 
               sendUnsubscriptionFunction)
   {
+    // bucketId -> key
     this.bucketIdToKey = new Map()
-    // ket -> set of bucketIds
+    // key -> set of bucketIds
     this.keytoBucketIds = new Map()
 
     this.bucketAssigner                       = bucketAssigner
@@ -14,7 +15,7 @@ class SubscriptionRouter
     this.sendSubscriptionFunction             = sendSubscriptionFunction
     this.sendUnsubscriptionFunction           = sendUnsubscriptionFunction
 
-    // Thes 2 function as passed to external code
+    // These 2 functions are passed to external code
     this.onBucketAssignment = this.onBucketAssignment.bind(this);
     this.onBucketUnassignment = this.onBucketUnassignment.bind(this);
   }
@@ -60,7 +61,7 @@ class SubscriptionRouter
       this.keytoBucketIds.get(existingKey).delete(bucket)
     }
 
-    // Add the relevant conect for the new bucket-key pair
+    // Add the relevant context for the new bucket-key pair
     this.bucketIdToKey.set(bucket, key)
     let bucketIdSet = this.keytoBucketIds.get(key)
     if (undefined === bucketIdSet) {
