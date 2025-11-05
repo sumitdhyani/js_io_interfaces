@@ -7,7 +7,7 @@ function totalSuborUnsubSent(sentMap) {
   }, 0)  
 }
 
-describe('SubscriptionRouter - Black Box Behavior Tests', () => {
+describe('ai_gen_SubscriptionRouter - Black Box Behavior Tests', () => {
   let router;
   let subscriptionsSent;
   let unsubscriptionsSent;
@@ -192,7 +192,7 @@ describe('SubscriptionRouter - Black Box Behavior Tests', () => {
     }
   });
 
-  describe('SubscriptionRouter - Multiple Buckets Behavior Tests', () => {
+  describe('ai_gen_SubscriptionRouter - Multiple Buckets Behavior Tests', () => {
     let router;
     let subscriptionsSent;
     let unsubscriptionsSent;

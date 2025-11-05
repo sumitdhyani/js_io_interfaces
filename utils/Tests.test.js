@@ -467,7 +467,6 @@ describe('manual', () => {
 
     for (let i = 0; i < keys.length; i++) {
       let removalKey = `k${i}`
-      console.log(`removalKey: ${removalKey}`)
       if (keyToBucketIdxs.delete(removalKey)) {
         assigner.removeKey(removalKey, getAssignmentCallback(keyToBucketIdxs))
         expect(verifyOptimalDistribution(keyToBucketIdxs, 5, keyToBucketIdxs.size)).toBe(true);
