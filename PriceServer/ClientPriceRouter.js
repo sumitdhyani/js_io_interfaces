@@ -65,12 +65,18 @@ function getClientInteractionFunctions(subscriptionForwarder,
       return
     }
 
+    if (undefined !== instrumentToClients.get(instrument)) {
+      addInstrumentForClient(clientToInstruments, clientId, instrument)
+      addClientForInstrument(instrumentToClients, instrument, clientId)
+      setImmediate(()=> { cb(null) })
+      return
+    }
+
     subscriptionForwarder(bucketIdGenerator(instrument), instrument, (err)=>{
       if (!err) {
         addInstrumentForClient(clientToInstruments, clientId, instrument) &&
         addClientForInstrument(instrumentToClients, instrument, clientId)
       }
-
       cb(err)
     })
   }
@@ -82,14 +88,17 @@ function getClientInteractionFunctions(subscriptionForwarder,
       return
     }
 
-    unsubscriptionForwarder(bucketIdGenerator(instrument), instrument, (err) => {
-      if (!err) {
-        removeInstrumentForClient(clientToInstruments, clientId, instrument)
-        removeClientForInstrument(instrumentToClients, instrument, clientId)
-      }
+    const numClients = clients.size
+    const hasClient = clients.has(clientId)
 
-      cb(err)
-    })
+    removeInstrumentForClient(clientToInstruments, clientId, instrument)
+    removeClientForInstrument(instrumentToClients, instrument, clientId)
+    // Last client for this instrument
+    if (numClients === 1 && hasClient) {
+      unsubscriptionForwarder(bucketIdGenerator(instrument), instrument, cb)
+    } else {
+      setImmediate(()=>{ cb(null) })
+    }
   }
 
   const onPrice = (instrument, price) => {
@@ -112,20 +121,18 @@ function getClientInteractionFunctions(subscriptionForwarder,
       const clients = instrumentToClients.get(instrument)
       const numClients = clients.size
       const hasClient = clients.has(clientId)
-      
-      const unsubscriptionFunc = () => {
-        unsubscriptionForwarder(bucketIdGenerator(instrument), instrument, (err) => {
-          if (!err) {
-            removeInstrumentForClient(clientToInstruments, clientId, instrument)
-            removeClientForInstrument(instrumentToClients, instrument, clientId)
-          } else {// rery if there was en error forwarding unsubscription
-            messageSendingFailedHandlerFunction(unsubscriptionFunc)
+      removeInstrumentForClient(clientToInstruments, clientId, instrument)
+      removeClientForInstrument(instrumentToClients, instrument, clientId)
+
+      // Last client for this instrument
+      if (numClients === 1 && hasClient) {
+        unsubscriptionForwarder(bucketIdGenerator(instrument), instrument, (err)=>{
+          if(err) {
+            messageSendingFailedHandlerFunction(err)
           }
         })
-      }
-
-      if(numClients === 1 && hasClient) {
-        unsubscriptionFunc()
+      } else {
+        setImmediate(() => { cb(null) })
       }
     })
   }
