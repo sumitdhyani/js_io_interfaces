@@ -20,39 +20,30 @@ class SubscriptionRouter
     this.onBucketUnassignment = this.onBucketUnassignment.bind(this);
   }
 
-  onSubscriptionRequest(bucket, request) {
+  onSubscriptionRequest(bucket, request, cb) {
     const key = this.bucketIdToKey.get(bucket)
-    if (undefined === key) return false
-    this.sendSubscriptionFunction(key, request)
-    return true
-  }
-
-  onUnsubscriptionRequest(bucket, request) {
-    const key = this.bucketIdToKey.get(bucket)
-    if (undefined === key) return false
-    this.sendUnsubscriptionFunction(key, request)
-    return true
-  }
-
-  onKeyAssignment(bucket, key) {
-    const requestList = this.getInstrumentListFromBucketFunction(bucket)
-    requestList.forEach(request => {
-      this.sendSubscriptionFunction(key, request)
-    })
-
-    this.bucketIdToKey.set(bucket, key)
-    let bucketIdSet = this.keytoBucketIds.get(key)
-    if (undefined == bucketIdSet) {
-      bucketIdSet = new Set();
-      this.keytoBucketIds.set(key, bucketIdSet)  
+    if (undefined === key) {
+      setImmediate(()=>{cb(new Error("No Price Providers for this exchange"))})
+      return
     }
-    bucketIdSet.add(bucket)
+
+    this.sendSubscriptionFunction(key, request, cb)
   }
 
-  onBucketAssignment(bucket, key) {
+  onUnsubscriptionRequest(bucket, request, cb) {
+    const key = this.bucketIdToKey.get(bucket)
+    if (undefined === key) {
+      setImmediate(() => { cb(new Error("No Price Providers for this exchange")) })
+      return
+    }
+
+    this.sendUnsubscriptionFunction(key, request, cb)
+  }
+
+  onBucketAssignment(bucket, key, cb) {
     const requestList = this.getInstrumentListFromBucketFunction(bucket)
     requestList.forEach(request => {
-      this.sendSubscriptionFunction(key, request)
+      this.sendSubscriptionFunction(key, request, cb)
     })
     // Remove existing arrangement for the bucket
     const existingKey = this.bucketIdToKey.get(bucket)
@@ -71,10 +62,10 @@ class SubscriptionRouter
     bucketIdSet.add(bucket)
   }
 
-  onBucketUnassignment(bucket, key) {
+  onBucketUnassignment(bucket, key, cb) {
     const requestList = this.getInstrumentListFromBucketFunction(bucket)
     requestList.forEach(request => {
-      this.sendUnsubscriptionFunction(key, request)
+      this.sendUnsubscriptionFunction(key, request, cb)
     })
 
     if (this.bucketIdToKey.get(bucket) === key) {
@@ -84,7 +75,7 @@ class SubscriptionRouter
   }
 
   // Delete the all data related to 'key' before calling the deleteKeyNotification function
-  onPriceProviderDown(key) {
+  onPriceProviderDown(key, cb_sub) {
     // First get the bicket belongins to this key and remove their references
     const bucketSet = this.keytoBucketIds.get(key)
     if (undefined !== bucketSet) {
@@ -94,11 +85,11 @@ class SubscriptionRouter
       this.bucketIdToKey.delete(key)
     }
   
-    this.bucketAssigner.removeKey(key, this.onBucketAssignment)
+    this.bucketAssigner.removeKey(key, (bucket, key)=>{this.onBucketAssignment(bucket, key, cb_sub)})
   }
 
-  onPriceProviderUp(key) {
-    this.bucketAssigner.addKey(key, this.onBucketAssignment, this.onBucketUnassignment)
+  onPriceProviderUp(key, cb_sub, cb_unsub) {
+    this.bucketAssigner.addKey(key, (bucket, key)=>{this.onBucketAssignment(bucket, key, cb_sub)}, (bucket, key)=>{ this.onBucketUnassignment(bucket, key, cb_unsub) })
   }
 }
 

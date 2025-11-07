@@ -1,13 +1,59 @@
 const SubscriptionRouter = require('../SubscriptionRouter');
 const BucketAssigner = require('../../utils/BucketAssigner');
 
+function callAsync(cb, val) {
+  setImmediate(() => { cb(val) })
+}
+
 function totalSuborUnsubSent(sentMap) {
   return Array.from(sentMap.values()).reduce((acc, val) => {
     return acc + val.length
-  }, 0)  
+  }, 0)
 }
 
-describe('ai_gen_SubscriptionRouter - Black Box Behavior Tests', () => {
+function expectTrue(val) {
+  expect(val).toBe(true)
+}
+
+function expectFalse(val) {
+  expect(val).toBe(false)
+}
+
+// val : 'Y'/err, 'N'/no error
+function errCallback(val) {
+  val = val.toLowerCase()
+  return (err) =>{
+    if(val === 'y') {
+      expect(err).not.toBe(null)
+   } else {
+      expect(err).toBe(null)
+   }
+  }
+}
+
+function getSendSubscriptionFunction(subscriptionsSent) {
+  return (key, request, cb) => {
+    if (!subscriptionsSent.has(key)) {
+      subscriptionsSent.set(key, []);
+    }
+    subscriptionsSent.get(key).push(request);
+    callAsync(cb, null)
+  }
+}
+
+function dummyCb(err){}
+
+function getSendUnSubscriptionFunction(unsubscriptionsSent) {
+  return (key, request, cb) => {
+    if (!unsubscriptionsSent.has(key)) {
+      unsubscriptionsSent.set(key, []);
+    }
+    unsubscriptionsSent.get(key).push(request);
+    callAsync(cb, null)
+  }
+}
+
+describe('ai_gen_SubscriptionRouter - Black Box Behavior Tests', (done) => {
   let router;
   let subscriptionsSent;
   let unsubscriptionsSent;
@@ -18,21 +64,6 @@ describe('ai_gen_SubscriptionRouter - Black Box Behavior Tests', () => {
     unsubscriptionsSent = new Map(); // key -> Set of requests
     instrumentsForBucket = new Map(); // bucket -> [requests]
 
-    // Mock functions that track what was sent where
-    const sendSubscription = (key, request) => {
-      if (!subscriptionsSent.has(key)) {
-        subscriptionsSent.set(key, []);
-      }
-      subscriptionsSent.get(key).push(request);
-    };
-
-    const sendUnsubscription = (key, request) => {
-      if (!unsubscriptionsSent.has(key)) {
-        unsubscriptionsSent.set(key, []);
-      }
-      unsubscriptionsSent.get(key).push(request);
-    };
-
     const getInstrumentsForBucket = (bucket) => {
       return instrumentsForBucket.get(bucket) || [];
     };
@@ -40,121 +71,136 @@ describe('ai_gen_SubscriptionRouter - Black Box Behavior Tests', () => {
     router = new SubscriptionRouter(
       new BucketAssigner(10),
       getInstrumentsForBucket,
-      sendSubscription,
-      sendUnsubscription
+      getSendSubscriptionFunction(subscriptionsSent),
+      getSendUnSubscriptionFunction(unsubscriptionsSent)
     );
   });
 
-  test('subscription requests are routed only after provider up and assignment', () => {
+  test('subscription requests are routed only after provider up and assignment', (done) => {
     // Setup some instruments for bucket 1
     instrumentsForBucket.set(1, ['EUR/USD', 'GBP/USD']);
-    
+
     // Before provider is up, requests should be rejected
-    expect(router.onSubscriptionRequest(1, 'EUR/USD')).toBe(false);
-    expect(subscriptionsSent.size).toBe(0);
+    router.onSubscriptionRequest(1, 'EUR/USD', (err) => {
+      expect(err).not.toBe(null)
+    })
+
+    expect(totalSuborUnsubSent(subscriptionsSent)).toBe(0)
 
     // Bring provider online and assign bucket
-    router.onPriceProviderUp('provider-A');
-    
+    router.onPriceProviderUp('provider-A', (err)=>{}, (err)=>{});
+    expect(totalSuborUnsubSent(subscriptionsSent)).toBe(2)
     // Request should still be rejected until bucket is assigned
-    expect(router.onSubscriptionRequest(1, 'EUR/USD')).toBe(true);
-    expect(subscriptionsSent.size).toBe(1);
+    router.onSubscriptionRequest(1, 'EUR/USD', (err) => {
+      expect(err).toBe(null)
+    })
+    expect(totalSuborUnsubSent(subscriptionsSent)).toBe(3)
 
     // After assignment and request, should see subscriptions
-    router.onPriceProviderDown('provider-A');
-    expect(router.onSubscriptionRequest(1, 'EUR/USD')).toBe(false);
+    router.onPriceProviderDown('provider-A', (err)=>{});
+    router.onSubscriptionRequest(1, 'EUR/USD', (err)=>{
+      expect(err).not.toBe(null)
+      done()
+    });
+
+    expect(subscriptionsSent.size).toBe(1)
   });
 
-  test('unsubscription follows same routing rules as subscription', () => {
+  test('unsubscription follows same routing rules as subscription', (done) => {
     instrumentsForBucket.set(2, ['JPY/USD']);
-    
+
     // Without provider up, should reject
-    expect(router.onUnsubscriptionRequest(2, 'JPY/USD')).toBe(false);
+    router.onUnsubscriptionRequest(2, 'JPY/USD', errCallback('y'))
+    
     expect(unsubscriptionsSent.size).toBe(0);
 
-    // With provider but no assignment, should reject
-    router.onPriceProviderUp('provider-B');
-    expect(router.onUnsubscriptionRequest(2, 'JPY/USD')).toBe(true);
+    // With provider but no assignment, should not reject
+    router.onPriceProviderUp('provider-B', dummyCb, dummyCb);
+    router.onUnsubscriptionRequest(2, 'JPY/USD', errCallback('n'))
+
     expect(unsubscriptionsSent.size).toBe(1);
 
     // After provider down, should reject again
-    router.onPriceProviderDown('provider-B');
-    expect(router.onUnsubscriptionRequest(2, 'JPY/USD')).toBe(false);
+    router.onPriceProviderDown('provider-B', dummyCb);
+    router.onUnsubscriptionRequest(2, 'JPY/USD', errCallback('y'));
+
+    setImmediate(()=>{ done() })
   });
 
-  test('provider down stops routing to that provider', () => {
+  test('provider down stops routing to that provider', (done) => {
     instrumentsForBucket.set(3, ['AUD/USD']);
-    
+
     // Setup provider and verify routing works
-    router.onPriceProviderUp('provider-C');
+    router.onPriceProviderUp('provider-C', dummyCb, dummyCb);
     expect(totalSuborUnsubSent(subscriptionsSent)).toBe(1)
-    router.onSubscriptionRequest(3, 'AUD/USD');
+    router.onSubscriptionRequest(3, 'AUD/USD', errCallback('n'));
     expect(totalSuborUnsubSent(subscriptionsSent)).toBe(2)
 
     // Take provider down
-    router.onPriceProviderDown('provider-C');
+    router.onPriceProviderDown('provider-C', dummyCb, dummyCb);
     expect(totalSuborUnsubSent(subscriptionsSent)).toBe(2)
 
     // Verify routing stops
-    expect(router.onSubscriptionRequest(3, 'AUD/USD')).toBe(false);
+    router.onSubscriptionRequest(3, 'AUD/USD', errCallback('y'))
     expect(totalSuborUnsubSent(subscriptionsSent)).toBe(2)
 
-    router.onPriceProviderUp('provider-C');
+    router.onPriceProviderUp('provider-C', dummyCb, dummyCb);
     expect(totalSuborUnsubSent(subscriptionsSent)).toBe(3)
     expect(totalSuborUnsubSent(unsubscriptionsSent)).toBe(0)
 
-    expect(router.onUnsubscriptionRequest(3, 'AUD/USD')).toBe(true);
-    expect(totalSuborUnsubSent(subscriptionsSent)).toBe(3)
-    expect(totalSuborUnsubSent(unsubscriptionsSent)).toBe(1)    
-
-    router.onPriceProviderDown('provider-C');
-    expect(router.onUnsubscriptionRequest(3, 'AUD/USD')).toBe(false);
+    router.onUnsubscriptionRequest(3, 'AUD/USD', errCallback('n'))
     expect(totalSuborUnsubSent(subscriptionsSent)).toBe(3)
     expect(totalSuborUnsubSent(unsubscriptionsSent)).toBe(1)
 
+    router.onPriceProviderDown('provider-C', dummyCb, dummyCb);
+    router.onUnsubscriptionRequest(3, 'AUD/USD', errCallback('y'))
+    expect(totalSuborUnsubSent(subscriptionsSent)).toBe(3)
+    expect(totalSuborUnsubSent(unsubscriptionsSent)).toBe(1)
+    setImmediate(()=>{ done() })
   });
 
-  test('bringing provider back up restores routing capability', () => {
+  test('bringing provider back up restores routing capability', (done) => {
     instrumentsForBucket.set(4, ['NZD/USD']);
-    
+
     // Up -> Down -> Up cycle
-    router.onPriceProviderUp('provider-D');
+    router.onPriceProviderUp('provider-D', dummyCb, dummyCb);
     expect(subscriptionsSent.size).toBe(1);
     expect(totalSuborUnsubSent(subscriptionsSent)).toBe(1);
 
-    router.onSubscriptionRequest(4, 'NZD/USD');
-    router.onSubscriptionRequest(4, 'NZD/USD');
+    router.onSubscriptionRequest(4, 'NZD/USD', errCallback('n'));
+    router.onSubscriptionRequest(4, 'NZD/USD', errCallback('n'));
     expect(totalSuborUnsubSent(subscriptionsSent)).toBe(3);
 
-    router.onPriceProviderDown('provider-D');
-    router.onSubscriptionRequest(4, 'NZD/USD');
-    router.onSubscriptionRequest(4, 'NZD/USD');
+    router.onPriceProviderDown('provider-D', dummyCb);
+    router.onSubscriptionRequest(4, 'NZD/USD', errCallback('y'));
+    router.onSubscriptionRequest(4, 'NZD/USD', errCallback('y'));
     expect(totalSuborUnsubSent(subscriptionsSent)).toBe(3);
 
-    router.onPriceProviderUp('provider-D');
+    router.onPriceProviderUp('provider-D', dummyCb, dummyCb);
     expect(totalSuborUnsubSent(subscriptionsSent)).toBe(4);
-    router.onSubscriptionRequest(4, 'NZD/USD');
-    router.onSubscriptionRequest(4, 'NZD/USD');
+    router.onSubscriptionRequest(4, 'NZD/USD', errCallback('n'));
+    router.onSubscriptionRequest(4, 'NZD/USD', errCallback('n'));
 
     // Verify routing works again after reassignment
     expect(subscriptionsSent.has('provider-D')).toBe(true);
     expect(subscriptionsSent.size).toBe(1);
     expect(totalSuborUnsubSent(subscriptionsSent)).toBe(6);
+    setImmediate(() => { done() })
   });
 
-  test('bucket reassignment sends unsubscribe to old provider and subscribe to new provider', () => {
+  test('bucket reassignment sends unsubscribe to old provider and subscribe to new provider', (done) => {
     // Setup instruments for bucket 1
     instrumentsForBucket.set(1, ['EUR/USD', 'GBP/USD']);
 
     expect(totalSuborUnsubSent(subscriptionsSent)).toBe(0)
     // Bring up first provider and verify its subscriptions
-    router.onPriceProviderUp('provider-A');
+    router.onPriceProviderUp('provider-A', dummyCb, dummyCb);
     const subCountBeforeSecondProvider = totalSuborUnsubSent(subscriptionsSent);
     expect(subCountBeforeSecondProvider).toBe(2)
     expect(subscriptionsSent.has('provider-A')).toBe(true);
 
     // Bring up second provider
-    router.onPriceProviderUp('provider-B');
+    router.onPriceProviderUp('provider-B', dummyCb, dummyCb);
     // No new sub/un
     expect(totalSuborUnsubSent(subscriptionsSent)).toBe(subCountBeforeSecondProvider)
     expect(totalSuborUnsubSent(unsubscriptionsSent)).toBe(0)
@@ -185,11 +231,13 @@ describe('ai_gen_SubscriptionRouter - Black Box Behavior Tests', () => {
 
     // Verify routing still works for whichever provider currently holds bucket 1
     if (subscriptionsSent.has('provider-A')) {
-      expect(router.onSubscriptionRequest(1, 'NEW/EUR')).toBe(true);
+      router.onSubscriptionRequest(1, 'NEW/EUR', errCallback('n'));
     }
     if (subscriptionsSent.has('provider-B')) {
-      expect(router.onSubscriptionRequest(1, 'NEW/GBP')).toBe(true);
+      router.onSubscriptionRequest(1, 'NEW/GBP', errCallback('n'))
     }
+
+    setImmediate(() => { done() })
   });
 
   describe('ai_gen_SubscriptionRouter - Multiple Buckets Behavior Tests', () => {
@@ -210,21 +258,6 @@ describe('ai_gen_SubscriptionRouter - Black Box Behavior Tests', () => {
       unsubscriptionsSent = new Map(); // key -> Set of requests
       instrumentsForBucket = new Map(); // bucket -> [requests]
 
-      // Mock functions that track what was sent where
-      sendSubscription = (key, request) => {
-        if (!subscriptionsSent.has(key)) {
-          subscriptionsSent.set(key, []);
-        }
-        subscriptionsSent.get(key).push(request);
-      };
-
-      sendUnsubscription = (key, request) => {
-        if (!unsubscriptionsSent.has(key)) {
-          unsubscriptionsSent.set(key, []);
-        }
-        unsubscriptionsSent.get(key).push(request);
-      };
-
       getInstrumentsForBucket = (bucket) => {
         return instrumentsForBucket.get(bucket) || [];
       };
@@ -232,12 +265,12 @@ describe('ai_gen_SubscriptionRouter - Black Box Behavior Tests', () => {
       router = new SubscriptionRouter(
         new BucketAssigner(10),
         getInstrumentsForBucket,
-        sendSubscription,
-        sendUnsubscription
+        getSendSubscriptionFunction(subscriptionsSent),
+        getSendUnSubscriptionFunction(unsubscriptionsSent)
       );
     });
 
-    test('multiple buckets with different instruments', () => {
+    test('multiple buckets with different instruments', (done) => {
       // Setup instruments for multiple buckets
       instrumentsForBucket.set(0, ['EUR/USD']);
       instrumentsForBucket.set(1, ['JPY/USD']);
@@ -251,17 +284,17 @@ describe('ai_gen_SubscriptionRouter - Black Box Behavior Tests', () => {
       instrumentsForBucket.set(9, ['AUD/INR']);
 
       // Bring up first provider and assign bucket 1
-      router.onPriceProviderUp('provider-A');
+      router.onPriceProviderUp('provider-A', dummyCb, dummyCb);
       expected_num_subs_yet = Array.from(instrumentsForBucket.values()).flat().length
       expect(totalSuborUnsubSent(subscriptionsSent)).toBe(expected_num_subs_yet);
 
-      expect(router.onSubscriptionRequest(1, 'EUR/USD')).toBe(true);
+      router.onSubscriptionRequest(1, 'EUR/USD', errCallback('n'))
       expected_num_subs_yet += 1
       expect(totalSuborUnsubSent(subscriptionsSent)).toBe(expected_num_subs_yet);
       expect(totalSuborUnsubSent(unsubscriptionsSent)).toBe(expected_num_unsubs_yet);
 
       // Bring up second provider and assign bucket 2
-      router.onPriceProviderUp('provider-B');
+      router.onPriceProviderUp('provider-B', dummyCb, dummyCb);
       // Bucket Distribution was [10], not it should be [5, 5]
       // i.e., 1 bucket should be taken from provider-A and given to provider-B
       // so 1 unsubscription and 1 subscription
@@ -273,7 +306,7 @@ describe('ai_gen_SubscriptionRouter - Black Box Behavior Tests', () => {
       // Bucket Distribution was [5,5], not it should be [4, 3, 3]
       // i.e., 1 bucket should be taken from provider-A and given to provider-B
       // so 1 unsubscription and 1 subscription
-      router.onPriceProviderUp('provider-C');
+      router.onPriceProviderUp('provider-C', dummyCb, dummyCb);
       expected_num_subs_yet += 3
       expected_num_unsubs_yet += 3
       expect(totalSuborUnsubSent(subscriptionsSent)).toBe(expected_num_subs_yet);
@@ -283,14 +316,16 @@ describe('ai_gen_SubscriptionRouter - Black Box Behavior Tests', () => {
       expect(subscriptionsSent.has('provider-A')).toBe(true);
       expect(subscriptionsSent.has('provider-B')).toBe(true);
       expect(subscriptionsSent.has('provider-C')).toBe(true);
+
+      setImmediate(() => { done() })
     });
 
-    test('unsubscribing from multiple buckets', () => {
+    test('unsubscribing from multiple buckets', (done) => {
       router = new SubscriptionRouter(
         new BucketAssigner(3),
         getInstrumentsForBucket,
-        sendSubscription,
-        sendUnsubscription
+        getSendSubscriptionFunction(subscriptionsSent),
+        getSendUnSubscriptionFunction(unsubscriptionsSent)
       );
       // Setup instruments for multiple buckets
       instrumentsForBucket.set(0, ['EUR/USD', 'GBP/USD']);
@@ -298,59 +333,61 @@ describe('ai_gen_SubscriptionRouter - Black Box Behavior Tests', () => {
       instrumentsForBucket.set(2, ['AUD/USD', 'NZD/USD']);
 
       // Bring up providers
-      router.onPriceProviderUp('provider-A');
+      router.onPriceProviderUp('provider-A', dummyCb, dummyCb);
       expected_num_subs_yet = Array.from(instrumentsForBucket.values()).flat().length
       expect(totalSuborUnsubSent(subscriptionsSent)).toBe(expected_num_subs_yet)
       expect(totalSuborUnsubSent(unsubscriptionsSent)).toBe(expected_num_unsubs_yet)
 
 
-      router.onPriceProviderUp('provider-B');
+      router.onPriceProviderUp('provider-B', dummyCb, dummyCb);
       expected_num_subs_yet += 2
       expected_num_unsubs_yet += 2
       expect(totalSuborUnsubSent(subscriptionsSent)).toBe(expected_num_subs_yet)
       expect(totalSuborUnsubSent(unsubscriptionsSent)).toBe(expected_num_unsubs_yet)
 
-      router.onPriceProviderUp('provider-C');
+      router.onPriceProviderUp('provider-C', dummyCb, dummyCb);
       expected_num_subs_yet += 2
       expected_num_unsubs_yet += 2
       expect(totalSuborUnsubSent(subscriptionsSent)).toBe(expected_num_subs_yet)
       expect(totalSuborUnsubSent(unsubscriptionsSent)).toBe(expected_num_unsubs_yet)
 
       // Subscribe to all instruments
-      router.onSubscriptionRequest(0, 'EUR/USD');
-      router.onSubscriptionRequest(0, 'GBP/USD');
-      router.onSubscriptionRequest(1, 'JPY/USD');
-      router.onSubscriptionRequest(2, 'AUD/USD');
-      router.onSubscriptionRequest(2, 'NZD/USD');
+      router.onSubscriptionRequest(0, 'EUR/USD', errCallback('n'));
+      router.onSubscriptionRequest(0, 'GBP/USD', errCallback('n'));
+      router.onSubscriptionRequest(1, 'JPY/USD', errCallback('n'));
+      router.onSubscriptionRequest(2, 'AUD/USD', errCallback('n'));
+      router.onSubscriptionRequest(2, 'NZD/USD', errCallback('n'));
 
       expected_num_subs_yet += 5
       expect(totalSuborUnsubSent(subscriptionsSent)).toBe(expected_num_subs_yet)
 
       // Unsubscribe from bucket 1
-      expect(router.onUnsubscriptionRequest(0, 'EUR/USD')).toBe(true);
+      router.onUnsubscriptionRequest(0, 'EUR/USD', errCallback('n'))
       expected_num_unsubs_yet += 1
       expect(totalSuborUnsubSent(subscriptionsSent)).toBe(expected_num_subs_yet)
       expect(totalSuborUnsubSent(unsubscriptionsSent)).toBe(expected_num_unsubs_yet);
 
       // Unsubscribe from bucket 2
-      expect(router .onUnsubscriptionRequest(1, 'JPY/USD')).toBe(true);
+      router.onUnsubscriptionRequest(1, 'JPY/USD', errCallback('n'))
       expected_num_unsubs_yet += 1
       expect(totalSuborUnsubSent(subscriptionsSent)).toBe(expected_num_subs_yet)
       expect(totalSuborUnsubSent(unsubscriptionsSent)).toBe(expected_num_unsubs_yet);
 
       // Unsubscribe from bucket 3
-      expect(router.onUnsubscriptionRequest(2, 'AUD/USD')).toBe(true);
+      router.onUnsubscriptionRequest(2, 'AUD/USD', errCallback('n'))
       expected_num_unsubs_yet += 1
       expect(totalSuborUnsubSent(subscriptionsSent)).toBe(expected_num_subs_yet)
       expect(totalSuborUnsubSent(unsubscriptionsSent)).toBe(expected_num_unsubs_yet);
+
+      setImmediate(()=> {done()})
     });
 
-    test('bucket reassignment with multiple providers', () => {
+    test('bucket reassignment with multiple providers', (done) => {
       router = new SubscriptionRouter(
         new BucketAssigner(3),
         getInstrumentsForBucket,
-        sendSubscription,
-        sendUnsubscription
+        getSendSubscriptionFunction(subscriptionsSent),
+        getSendUnSubscriptionFunction(unsubscriptionsSent)
       );
 
       // Setup instruments for multiple buckets
@@ -359,58 +396,58 @@ describe('ai_gen_SubscriptionRouter - Black Box Behavior Tests', () => {
       instrumentsForBucket.set(2, ['AUD/USD', 'NZD/USD']);
 
       // Bring up first provider and assign bucket 1
-      router.onPriceProviderUp('provider-A');
+      router.onPriceProviderUp('provider-A', dummyCb, dummyCb);
       expected_num_subs_yet += Array.from(instrumentsForBucket.values()).flat().length
       expect(totalSuborUnsubSent(subscriptionsSent)).toBe(expected_num_subs_yet)
       expect(totalSuborUnsubSent(unsubscriptionsSent)).toBe(expected_num_unsubs_yet);
 
-      router.onSubscriptionRequest(0, 'EUR/USD');
-      router.onSubscriptionRequest(1, 'GBP/USD');
+      router.onSubscriptionRequest(0, 'EUR/USD', errCallback('n'));
+      router.onSubscriptionRequest(1, 'GBP/USD', errCallback('n'));
       expected_num_subs_yet += 2
       expect(totalSuborUnsubSent(subscriptionsSent)).toBe(expected_num_subs_yet)
       expect(totalSuborUnsubSent(unsubscriptionsSent)).toBe(expected_num_unsubs_yet);
 
       // Bring up second provider and assign bucket 2
-      router.onPriceProviderUp('provider-B');
+      router.onPriceProviderUp('provider-B', dummyCb, dummyCb);
       expected_num_subs_yet += 2
       expected_num_unsubs_yet += 2
       expect(totalSuborUnsubSent(subscriptionsSent)).toBe(expected_num_subs_yet)
       expect(totalSuborUnsubSent(unsubscriptionsSent)).toBe(expected_num_unsubs_yet);
 
-      router.onSubscriptionRequest(1, 'JPY/USD');
+      router.onSubscriptionRequest(1, 'JPY/USD', errCallback('n'));
       expected_num_subs_yet += 1
       expect(totalSuborUnsubSent(subscriptionsSent)).toBe(expected_num_subs_yet)
       expect(totalSuborUnsubSent(unsubscriptionsSent)).toBe(expected_num_unsubs_yet);
 
       // Bring up third provider and assign bucket 3
-      router.onPriceProviderUp('provider-C');
+      router.onPriceProviderUp('provider-C', dummyCb, dummyCb);
       expected_num_subs_yet += 2
       expected_num_unsubs_yet += 2
       expect(totalSuborUnsubSent(subscriptionsSent)).toBe(expected_num_subs_yet)
       expect(totalSuborUnsubSent(unsubscriptionsSent)).toBe(expected_num_unsubs_yet);
 
-      router.onSubscriptionRequest(2, 'AUD/USD');
-      router.onSubscriptionRequest(2, 'NZD/USD');
+      router.onSubscriptionRequest(2, 'AUD/USD', dummyCb);
+      router.onSubscriptionRequest(2, 'NZD/USD', dummyCb);
       expected_num_subs_yet += 2
       expect(totalSuborUnsubSent(subscriptionsSent)).toBe(expected_num_subs_yet)
       expect(totalSuborUnsubSent(unsubscriptionsSent)).toBe(expected_num_unsubs_yet);
 
 
       // Reassign buckets and check subscriptions
-      router.onPriceProviderDown('provider-A');
+      router.onPriceProviderDown('provider-A', dummyCb);
       expected_num_subs_yet += 2
       expect(totalSuborUnsubSent(subscriptionsSent)).toBe(expected_num_subs_yet)
       expect(totalSuborUnsubSent(unsubscriptionsSent)).toBe(expected_num_unsubs_yet);
 
-      router.onPriceProviderUp('provider-D'); // New provider takes over
+      router.onPriceProviderUp('provider-D', dummyCb, dummyCb); // New provider takes over
       expected_num_subs_yet += 2
       expected_num_unsubs_yet += 2
       expect(totalSuborUnsubSent(subscriptionsSent)).toBe(expected_num_subs_yet)
       expect(totalSuborUnsubSent(unsubscriptionsSent)).toBe(expected_num_unsubs_yet);
 
-      [...instrumentsForBucket].forEach(([bucket, instruments])=>{
-        instruments.forEach(instrument=>{
-          expect(router.onSubscriptionRequest(bucket, instrument)).toBe(true)
+      [...instrumentsForBucket].forEach(([bucket, instruments]) => {
+        instruments.forEach(instrument => {
+          router.onSubscriptionRequest(bucket, instrument, errCallback('n'))
         })
       })
 
@@ -420,7 +457,7 @@ describe('ai_gen_SubscriptionRouter - Black Box Behavior Tests', () => {
 
       [...instrumentsForBucket].forEach(([bucket, instruments]) => {
         instruments.forEach(instrument => {
-          expect(router.onUnsubscriptionRequest(bucket, instrument)).toBe(true)
+          router.onUnsubscriptionRequest(bucket, instrument, errCallback('n'))
         })
       })
 
@@ -428,31 +465,31 @@ describe('ai_gen_SubscriptionRouter - Black Box Behavior Tests', () => {
       expect(totalSuborUnsubSent(subscriptionsSent)).toBe(expected_num_subs_yet)
       expect(totalSuborUnsubSent(unsubscriptionsSent)).toBe(expected_num_unsubs_yet);
 
-      router.onPriceProviderDown('provider-A')
+      router.onPriceProviderDown('provider-A', dummyCb)
       expect(totalSuborUnsubSent(subscriptionsSent)).toBe(expected_num_subs_yet)
       expect(totalSuborUnsubSent(unsubscriptionsSent)).toBe(expected_num_unsubs_yet);
 
-      router.onPriceProviderDown('provider-B')
+      router.onPriceProviderDown('provider-B', dummyCb)
       expected_num_subs_yet += 2
       expect(totalSuborUnsubSent(subscriptionsSent)).toBe(expected_num_subs_yet)
       expect(totalSuborUnsubSent(unsubscriptionsSent)).toBe(expected_num_unsubs_yet);
 
-      router.onPriceProviderDown('provider-C')
-      router.onPriceProviderDown('provider-D');
+      router.onPriceProviderDown('provider-C', dummyCb)
+      router.onPriceProviderDown('provider-D', dummyCb);
 
       [...instrumentsForBucket].forEach(([bucket, instruments]) => {
         instruments.forEach(instrument => {
-          expect(router.onSubscriptionRequest(bucket, instrument)).toBe(false)
+          router.onSubscriptionRequest(bucket, instrument, errCallback('y'))
         })
       });
 
       [...instrumentsForBucket].forEach(([bucket, instruments]) => {
         instruments.forEach(instrument => {
-          expect(router.onUnsubscriptionRequest(bucket, instrument)).toBe(false)
+          router.onUnsubscriptionRequest(bucket, instrument, errCallback('y'))
         })
       })
 
-
+      setImmediate(()=>{ done() })
     });
   });
 })
