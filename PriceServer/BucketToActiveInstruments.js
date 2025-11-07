@@ -6,22 +6,26 @@ function getBucketToActiveInstrumentsFunctions(subsriptionForwarder,
   const bucketToInstruments = new Map()
 
   // instrument : "Exchange:Instrument:PriceTypeToSubscribe"
-  const onSubscription = (bucket, instrument)=>{
-    if(!subsriptionForwarder(bucket, instrument)) return
+  const onSubscription = (bucket, instrument, cb) => { 
+    subsriptionForwarder(bucket, instrument, (err)=> {
+      if (err !== null) {
+        instrumentToBucket.set(instrument, bucket)
+        let instruments = bucketToInstruments.get(bucket)
+        if(undefined === instruments) {
+          instruments = new Set()
+          bucketToInstruments.add(instruments)
+        }
 
-    instrumentToBucket.set(instrument, bucket)
-    let instruments = bucketToInstruments.get(bucket)
-    if (undefined === instruments) {
-      instruments = new Set()
-      bucketToInstruments.add(instruments)
-    }
+        instruments.add(instrument)
+      }
+      
+      cb(err)
+    })
 
-    instruments.add(instrument)
-    return true
   }
 
   const onUnSubscription = (bucket, instrument) => {
-    if(!unsubscriptionForwarder(bucket, instrument)) return
+    if(!unsubscriptionForwarder(bucket, instrument)) return false
 
     instrumentToBucket.delete(instrument)
     const instruments = bucketToInstruments.get(bucket)

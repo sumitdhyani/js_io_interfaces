@@ -18,7 +18,7 @@ function addInstrumentForClient(clientToInstruments, client, instrument) {
     clientToInstruments.set(client, new Set([instrument]))
     return true
   } else if (!instruments.has(instrument)) {
-    instruments.add(instr)
+    instruments.add(instrument)
     return true
   } 
   
@@ -52,55 +52,52 @@ function removeInstrumentForClient(clientToInstruments, client, instrument) {
 function getClientInteractionFunctions(subscriptionForwarder,
                                        unsubscriptionForwarder,
                                        priceForwarder,
-                                       bucketIdGenerator)
+                                       bucketIdGenerator,
+                                       messageSendingFailedHandlerFunction)
 {
   const clientToInstruments = new Map()
   const instrumentToClients = new Map()
-  const active = false
-  const synced = false
 
-  const onSubscription = (instrument, clientId)=>{
-    if (!(addInstrumentForClient(clientToInstruments, clientId, instrument) &&
-          addClientForInstrument(instrumentToClients, instrument, clientId))) {
-      throw Error(`Duplicate subscription for : ${instrument}`)
-    }
-
-    if(clientToInstruments.get(instrument).size > 1) {
+  const onSubscription = (instrument, clientId, cb)=>{
+    const clients = instrumentToClients.get(instrument)
+    if (undefined !== clients  && clients.has(clientId)) {
+      setImmediate(() => { cb(new Error(`Duplicate subscription for : ${instrument}, client: ${clientId}`)) })
       return
     }
-    
-    if(!subscriptionForwarder(bucketIdGenerator(instrument), instrument)) {
-      removeInstrumentForClient(clientToInstruments, clientId, instrument)
-      removeClientForInstrument(instrumentToClients, instrument, clientId)
-      throw Error(`No price provider for this exchange`)
-    }
+
+    subscriptionForwarder(bucketIdGenerator(instrument), instrument, (err)=>{
+      if (!err) {
+        addInstrumentForClient(clientToInstruments, clientId, instrument) &&
+        addClientForInstrument(instrumentToClients, instrument, clientId)
+      }
+
+      cb(err)
+    })
   }
 
-  const onUnSubscription = (instrument, clientId) => {
-    if (!(removeInstrumentForClient(clientToInstruments, clientId, instrument) &&
-          removeClientForInstrument(instrumentToClients, instrument, clientId))) {
-      throw Error(`Spurious unsubscription for : ${instrument}`)
-    }
-
-
-    // Atleast 1client is thereto receive the prices for this instrument
-    if(instrumentToClients.has(instrument)) {
+  const onUnSubscription = (instrument, clientId, cb) => {
+    const clients = instrumentToClients.get(instrument)
+    if (undefined === clients && !clients.has(clientId)) {
+      setImmediate(() => { cb(new Error(`Suprios unsubscription for : ${instrument}, client: ${clientId}`)) })
       return
     }
 
-    if (!unsubscriptionForwarder(bucketIdGenerator(instrument), instrument)) {
-      // Roolback thedata structures and throw an error
-      addInstrumentForClient(clientToInstruments, clientId, instrument)
-      addClientForInstrument(instrumentToClients, instrument, clientId)
-      throw Error(`No price provider for this exchange, unsubscription can't be forwarded, retry!`)
-    }
+    unsubscriptionForwarder(bucketIdGenerator(instrument), instrument, (err) => {
+      if (!err) {
+        removeInstrumentForClient(clientToInstruments, clientId, instrument)
+        removeClientForInstrument(instrumentToClients, instrument, clientId)
+      }
+
+      cb(err)
+    })
   }
 
   const onPrice = (instrument, price) => {
     const clientsForThisInstrument = instrumentToClients.get(instrument)
+    // Defensive coding, not ideal
     if (undefined === clientsForThisInstrument) {
       // Undesired price, the unsubsccription was not forwarded perhaps, unsubscribe now 
-      unsubscriptionForwarder(bucketIdGenerator(instrument), instrument)
+      unsubscriptionForwarder(bucketIdGenerator(instrument), instrument, (err)=>{})
       return
     }
 
@@ -114,12 +111,23 @@ function getClientInteractionFunctions(subscriptionForwarder,
     Array.from(instrumentsForThisClient.values()).forEach(instrument=>{
       const clients = instrumentToClients.get(instrument)
       const numClients = clients.size
-      if (removeClientForInstrument(instrumentToClients, instrument, clientId) && numClients === 1) {
-          unsubscriptionForwarder(bucketIdGenerator(instrument), instrument)
+      const hasClient = clients.has(clientId)
+      
+      const unsubscriptionFunc = () => {
+        unsubscriptionForwarder(bucketIdGenerator(instrument), instrument, (err) => {
+          if (!err) {
+            removeInstrumentForClient(clientToInstruments, clientId, instrument)
+            removeClientForInstrument(instrumentToClients, instrument, clientId)
+          } else {// rery if there was en error forwarding unsubscription
+            messageSendingFailedHandlerFunction(unsubscriptionFunc)
+          }
+        })
+      }
+
+      if(numClients === 1 && hasClient) {
+        unsubscriptionFunc()
       }
     })
-
-    clientToInstruments.delete(clientId)
   }
 
   return [onSubscription, onUnSubscription, onPrice, onClientDown]
