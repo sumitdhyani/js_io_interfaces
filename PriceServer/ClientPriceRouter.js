@@ -1,3 +1,5 @@
+const [err_codes, getErrorObject] = require('./ErrorCodes.js')
+
 function addClientForInstrument(instrumentToClients, instrument, client)
 {
   const clients = instrumentToClients.get(instrument)
@@ -13,7 +15,7 @@ function addClientForInstrument(instrumentToClients, instrument, client)
 }
 
 function addInstrumentForClient(clientToInstruments, client, instrument) {
-  const instruments = clientToInstruments.get(instrument)
+  const instruments = clientToInstruments.get(client)
   if (undefined === instruments) {
     clientToInstruments.set(client, new Set([instrument]))
     return true
@@ -61,30 +63,26 @@ function getClientInteractionFunctions(subscriptionForwarder,
   const onSubscription = (instrument, clientId, cb)=>{
     const clients = instrumentToClients.get(instrument)
     if (undefined !== clients  && clients.has(clientId)) {
-      setImmediate(() => { cb(new Error(`Duplicate subscription for : ${instrument}, client: ${clientId}`)) })
-      return
-    }
-
-    if (undefined !== instrumentToClients.get(instrument)) {
+      setImmediate(() => { cb(getErrorObject(err_codes.duplicate_subscription)) })
+    } else if (undefined !== instrumentToClients.get(instrument)) {
       addInstrumentForClient(clientToInstruments, clientId, instrument)
       addClientForInstrument(instrumentToClients, instrument, clientId)
       setImmediate(()=> { cb(null) })
-      return
+    } else {
+      subscriptionForwarder(bucketIdGenerator(instrument), instrument, (err)=>{
+        if (!err) {
+          addInstrumentForClient(clientToInstruments, clientId, instrument) &&
+          addClientForInstrument(instrumentToClients, instrument, clientId)
+        }
+        cb(err)
+      })
     }
-
-    subscriptionForwarder(bucketIdGenerator(instrument), instrument, (err)=>{
-      if (!err) {
-        addInstrumentForClient(clientToInstruments, clientId, instrument) &&
-        addClientForInstrument(instrumentToClients, instrument, clientId)
-      }
-      cb(err)
-    })
   }
 
   const onUnSubscription = (instrument, clientId, cb) => {
     const clients = instrumentToClients.get(instrument)
     if (undefined === clients && !clients.has(clientId)) {
-      setImmediate(() => { cb(new Error(`Suprios unsubscription for : ${instrument}, client: ${clientId}`)) })
+      setImmediate(() => { cb(getErrorObject(errOr_codes.spurious_unsubscription)) })
       return
     }
 
@@ -101,19 +99,19 @@ function getClientInteractionFunctions(subscriptionForwarder,
     }
   }
 
-  const onPrice = (instrument, price) => {
-    const clientsForThisInstrument = instrumentToClients.get(instrument)
-    // Defensive coding, not ideal
-    if (undefined === clientsForThisInstrument) {
-      // Undesired price, the unsubsccription was not forwarded perhaps, unsubscribe now 
-      unsubscriptionForwarder(bucketIdGenerator(instrument), instrument, (err)=>{})
-      return
-    }
+  // const onPrice = (instrument, price) => {
+  //   const clientsForThisInstrument = instrumentToClients.get(instrument)
+  //   // Defensive coding, not ideal
+  //   if (undefined === clientsForThisInstrument) {
+  //     // Undesired price, the unsubsccription was not forwarded perhaps, unsubscribe now 
+  //     unsubscriptionForwarder(bucketIdGenerator(instrument), instrument, (err)=>{})
+  //     return
+  //   }
 
-    clientsForThisInstrument.forEach(client => {
-      priceForwarder(client, price)
-    })
-  }
+  //   clientsForThisInstrument.forEach(client => {
+  //     priceForwarder(client, price)
+  //   })
+  // }
 
   const onClientDown = clientId=>{
     const instrumentsForThisClient = clientToInstruments.get(clientId) || []
@@ -135,7 +133,8 @@ function getClientInteractionFunctions(subscriptionForwarder,
     })
   }
 
-  return [onSubscription, onUnSubscription, onPrice, onClientDown]
+  //return [onSubscription, onUnSubscription, onPrice, onClientDown]
+  return [onSubscription, onUnSubscription, onClientDown]
 }
 
 module.exports = getClientInteractionFunctions
