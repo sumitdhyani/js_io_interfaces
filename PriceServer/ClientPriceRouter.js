@@ -131,8 +131,6 @@ function getClientInteractionFunctions(subscriptionForwarder,
             messageSendingFailedHandlerFunction(err)
           }
         })
-      } else {
-        setImmediate(() => { cb(null) })
       }
     })
   }
