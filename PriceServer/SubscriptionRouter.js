@@ -1,3 +1,4 @@
+const [err_codes, getErrorObject] = require('./ErrorCodes.js')
 class SubscriptionRouter
 {
   constructor(bucketAssigner,
@@ -23,7 +24,7 @@ class SubscriptionRouter
   onSubscriptionRequest(bucket, request, cb) {
     const key = this.bucketIdToKey.get(bucket)
     if (undefined === key) {
-      setImmediate(()=>{cb(new Error("No Price Providers for this exchange"))})
+      setImmediate(() => { cb(getErrorObject(err_codes.all_price_provider_down))})
       return
     }
 
@@ -33,7 +34,7 @@ class SubscriptionRouter
   onUnsubscriptionRequest(bucket, request, cb) {
     const key = this.bucketIdToKey.get(bucket)
     if (undefined === key) {
-      setImmediate(() => { cb(new Error("No Price Providers for this exchange")) })
+      setImmediate(() => { cb(getErrorObject(err_codes.all_price_provider_down)) })
       return
     }
 
