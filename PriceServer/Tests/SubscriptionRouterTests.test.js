@@ -11,14 +11,6 @@ function totalSuborUnsubSent(sentMap) {
   }, 0)
 }
 
-function expectTrue(val) {
-  expect(val).toBe(true)
-}
-
-function expectFalse(val) {
-  expect(val).toBe(false)
-}
-
 // val : 'Y'/err, 'N'/no error
 function errCallback(val) {
   val = val.toLowerCase()

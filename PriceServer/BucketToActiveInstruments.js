@@ -1,43 +1,30 @@
 
 function getBucketToActiveInstrumentsFunctions(subsriptionForwarder,
-                                               unsubscriptionForwarder)
-{
+                                               unsubscriptionForwarder) {
   const instrumentToBucket = new Map()
   const bucketToInstruments = new Map()
 
   // instrument : "Exchange:Instrument:PriceTypeToSubscribe"
-  const onSubscription = (bucket, instrument, cb) => { 
-    subsriptionForwarder(bucket, instrument, (err)=> {
-      if (!err) {
-        instrumentToBucket.set(instrument, bucket)
-        let instruments = bucketToInstruments.get(bucket)
-        if(undefined === instruments) {
-          instruments = new Set()
-          bucketToInstruments.add(instruments)
-        }
+  const addIntrument = (bucket, instrument) => {
+    instrumentToBucket.set(instrument, bucket)
+    let instruments = bucketToInstruments.get(bucket)
+    if (undefined === instruments) {
+      instruments = new Set()
+      bucketToInstruments.add(instruments)
+    }
 
-        instruments.add(instrument)
-      }
-
-      cb(err)
-    })
+    instruments.add(instrument)
   }
 
-  const onUnSubscription = (bucket, instrument, cb) => {
-    unsubscriptionForwarder(bucket, instrument, (err)=> {
-      if (!err) {
-        instrumentToBucket.delete(instrument)
-        const instruments = bucketToInstruments.get(bucket)
-        if (undefined !== instruments) {
-          instruments.delete(instrument)
-          if (instruments.size === 0) {
-            bucketToInstruments.delete(bucket)
-          }
-        }
+  const removeInstrument = (bucket, instrument) => {
+    instrumentToBucket.delete(instrument)
+    const instruments = bucketToInstruments.get(bucket)
+    if (undefined !== instruments) {
+      instruments.delete(instrument)
+      if (instruments.size === 0) {
+        bucketToInstruments.delete(bucket)
       }
-
-      cb(err)
-    })
+    }
   }  
     
 
@@ -45,7 +32,7 @@ function getBucketToActiveInstrumentsFunctions(subsriptionForwarder,
     return bucketToInstruments.get(bucket) || []
   }
 
-  return [onSubscription, onUnSubscription, getInstrumentsForBucket]
+  return [addIntrument, removeInstrument, getInstrumentsForBucket]
 }
 
 module.exports = getBucketToActiveInstrumentsFunctions
