@@ -73,11 +73,11 @@ function getClientInteractionFunctions(subscriptionForwarder,
       const forwardSubscriptionFunc = ()=>{
         subscriptionForwarder(bucketIdGenerator(instrument), instrument, (err)=>{
           if (err) {
-            // removeInstrumentForClient(clientToInstruments, clientId, instrument)
-            // removeClientForInstrument(instrumentToClients, instrument, clientId)
             if (err.err_code === err_codes.price_provider_down) {
               forwardSubscriptionFunc()
             } else {
+              removeInstrumentForClient(clientToInstruments, clientId, instrument)
+              removeClientForInstrument(instrumentToClients, instrument, clientId)
               cb(err)
             }
           } else {

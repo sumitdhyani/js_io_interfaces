@@ -10,7 +10,7 @@ function getBucketToActiveInstrumentsFunctions(subsriptionForwarder,
     let instruments = bucketToInstruments.get(bucket)
     if (undefined === instruments) {
       instruments = new Set()
-      bucketToInstruments.add(instruments)
+      bucketToInstruments.set(bucket, instruments)
     }
 
     instruments.add(instrument)
